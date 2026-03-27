@@ -414,6 +414,43 @@
             font-size: 0.9rem;
         }
 
+        /* Back to Top */
+        .back-to-top {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            border: none;
+            cursor: pointer;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+            z-index: 1000;
+            animation: topBounce 2s ease-in-out infinite;
+        }
+
+        .back-to-top.visible {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        @keyframes topBounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        .back-to-top:hover {
+            transform: scale(1.1);
+            animation: none;
+        }
+
         /* Responsive */
         @media (max-width: 768px) {
             .hero h1 { font-size: 3rem; }
@@ -527,6 +564,9 @@
         <p>Made with 🐾 & ☕ by Benji</p>
     </footer>
 
+    <!-- Back to Top Button -->
+    <button class="back-to-top" id="backToTop" title="Back to top">🚀</button>
+
     <script>
         // Loading Screen
         window.addEventListener('load', function() {
@@ -614,6 +654,21 @@
         const style = document.createElement('style');
         style.textContent = '.revealed { opacity: 1 !important; transform: translateY(0) !important; }';
         document.head.appendChild(style);
+
+        // Back to Top Button
+        const backToTop = document.getElementById('backToTop');
+        
+        window.addEventListener('scroll', function() {
+            if (window.scrollY > 300) {
+                backToTop.classList.add('visible');
+            } else {
+                backToTop.classList.remove('visible');
+            }
+        });
+
+        backToTop.addEventListener('click', function() {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
     </script>
 </body>
 </html>
