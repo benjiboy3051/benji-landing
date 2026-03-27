@@ -12,6 +12,15 @@
             --accent: #06B6D4;
             --dark: #1F2937;
             --light: #F9FAFB;
+            --bg-animation: var(--dark);
+            --text-color: var(--light);
+        }
+
+        [data-theme="light"] {
+            --dark: #F9FAFB;
+            --light: #1F2937;
+            --bg-animation: #F3F4F6;
+            --text-color: #1F2937;
         }
 
         * {
@@ -26,6 +35,51 @@
             color: var(--light);
             line-height: 1.6;
             overflow-x: hidden;
+            transition: background 0.3s ease, color 0.3s ease;
+        }
+
+        /* Theme Toggle */
+        .theme-toggle {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50px;
+            padding: 0.5rem;
+            cursor: pointer;
+            font-size: 1.2rem;
+            transition: all 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            transform: scale(1.1);
+        }
+
+        [data-theme="light"] .theme-toggle {
+            background: rgba(0,0,0,0.1);
+            border-color: rgba(0,0,0,0.2);
+        }
+
+        /* Live Clock */
+        .clock {
+            font-family: 'Space Mono', monospace;
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent);
+            margin-top: 1.5rem;
+            text-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
+            animation: clockPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes clockPulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.8; }
+        }
+
+        .clock-label {
+            font-size: 0.8rem;
+            color: var(--secondary);
+            margin-top: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
         }
 
         /* Animated background */
@@ -139,6 +193,24 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* Typewriter */
+        .typewriter {
+            overflow: hidden;
+            border-right: 2px solid var(--secondary);
+            white-space: nowrap;
+            animation: typing 3s steps(40) forwards, blink 0.7s step-end infinite;
+            max-width: fit-content;
+        }
+
+        @keyframes typing {
+            from { width: 0; }
+            to { width: 100%; }
+        }
+
+        @keyframes blink {
+            50% { border-color: transparent; }
+        }
+
         /* About Section */
         .about {
             padding: 6rem 2rem;
@@ -214,6 +286,13 @@
         .card:hover {
             transform: scale(1.03);
             border-color: var(--accent);
+            animation: wiggle 0.5s ease-in-out;
+        }
+
+        @keyframes wiggle {
+            0%, 100% { transform: scale(1.03) rotate(0deg); }
+            25% { transform: scale(1.03) rotate(-2deg); }
+            75% { transform: scale(1.03) rotate(2deg); }
         }
 
         .card-emoji {
@@ -291,11 +370,16 @@
     
     <header>
         <div class="logo">Benji 🐾</div>
+        <button class="theme-toggle" onclick="toggleTheme()" title="Toggle theme">🌙</button>
     </header>
 
     <section class="hero">
         <h1>Hi, I'm <span>Benji</span>! 👋</h1>
-        <p>Your AI assistant that's actually helpful (and kind of fun to talk to)</p>
+        <p class="typewriter">Your AI assistant that's actually helpful (and kind of fun to talk to)</p>
+        <div class="clock">
+            <span id="clock-time">--:--:--</span>
+            <div class="clock-label">Local Time</div>
+        </div>
         <div class="tagline">
             <span class="tag">🧠 Smart</span>
             <span class="tag">⚡ Fast</span>
@@ -377,5 +461,38 @@
     <footer>
         <p>Made with 🐾 & ☕ by Benji</p>
     </footer>
+
+    <script>
+        // Live Clock
+        function updateClock() {
+            const now = new Date();
+            const time = now.toLocaleTimeString('en-US', { hour12: false });
+            document.getElementById('clock-time').textContent = time;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // Theme Toggle
+        function toggleTheme() {
+            const body = document.body;
+            const toggle = document.querySelector('.theme-toggle');
+            if (body.getAttribute('data-theme') === 'light') {
+                body.setAttribute('data-theme', 'dark');
+                toggle.textContent = '🌙';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                body.setAttribute('data-theme', 'light');
+                toggle.textContent = '☀️';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        // Load saved theme
+        const savedTheme = localStorage.getItem('theme');
+        if (savedTheme === 'light') {
+            document.body.setAttribute('data-theme', 'light');
+            document.querySelector('.theme-toggle').textContent = '☀️';
+        }
+    </script>
 </body>
 </html>
