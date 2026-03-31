@@ -11,7 +11,7 @@
 </style>
 </head>
 <body>
-<canvas id="c" role="img" aria-label="Benji Runner - an endless runner game. Press Space to jump, Down arrow to duck." tabindex="0"></canvas>
+<canvas id="c" role="img" aria-label="Benji Runner - endless runner. Press Space to jump (twice for double jump), Down to duck, P to pause." tabindex="0"></canvas>
 <script>
 (() => {
   const canvas = document.getElementById('c');
@@ -138,7 +138,8 @@
 
   const benji = {
     x: 80, y: GROUND_Y, w: 44, h: 50,
-    vy: 0, grounded: true, ducking: false, runFrame: 0, runTimer: 0
+    vy: 0, grounded: true, ducking: false, runFrame: 0, runTimer: 0,
+    canDoubleJump: true
   };
 
   // ---- PIXEL ART ----
@@ -406,11 +407,17 @@
   }
 
   function drawGround() {
+    // Sandy ground fill
+    ctx.fillStyle = nightMode ? '#2d2d3d' : '#e8dcc8';
+    ctx.fillRect(0, GROUND_Y + 2, W, H - GROUND_Y - 2);
+    // Top edge
     ctx.fillStyle = nightMode ? '#535353' : '#535353';
     ctx.fillRect(0, GROUND_Y + 2, W, 2);
-    ctx.fillStyle = nightMode ? '#444' : '#999';
+    // Detail line
+    ctx.fillStyle = nightMode ? '#444' : '#c4b89a';
     ctx.fillRect(0, GROUND_Y + 4, W, 1);
-    ctx.fillStyle = nightMode ? '#444' : '#888';
+    // Pebbles/stones
+    ctx.fillStyle = nightMode ? '#3d3d4d' : '#d4c8a8';
     groundLines.forEach(g => ctx.fillRect(g.x, GROUND_Y + 7, g.w, 1));
   }
 
@@ -575,7 +582,7 @@
     ctx.font = '14px monospace';
     ctx.fillText('Press SPACE or tap to start', W/2, H/2 + 20);
     ctx.font = '11px monospace'; ctx.fillStyle = nightMode ? '#aaa' : '#999';
-    ctx.fillText('SPACE / ↑ Jump  •  ↓ Duck', W/2, H/2 + 45);
+    ctx.fillText('SPACE / ↑ Jump  •  Double tap for double jump', W/2, H/2 + 45);
     if (highScore > 0) {
       ctx.fillStyle = nightMode ? '#f5a623' : '#7C3AED'; ctx.font = '13px monospace';
       ctx.fillText('High Score: ' + highScore, W/2, H/2 + 70);
@@ -644,7 +651,7 @@
     // Physics
     if (!benji.grounded) {
       benji.vy += GRAVITY; benji.y += benji.vy;
-      if (benji.y >= GROUND_Y) { benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; addParticles(benji.x + 15, benji.y, 5, 12); }
+      if (benji.y >= GROUND_Y) { benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; benji.canDoubleJump = true; addParticles(benji.x + 15, benji.y, 5, 12); }
     }
 
     // Animate
@@ -726,12 +733,22 @@
       mountains.push({ x: i * 130 + Math.random() * 40, h: 40 + Math.random() * 50, w: 80 + Math.random() * 60 });
     }
     lastMilestone = 0; scoreFlash = 0; shakeTimer = 0; paused = false;
-    benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; benji.ducking = false; benji.runFrame = 0;
+    benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; benji.ducking = false; benji.runFrame = 0; benji.canDoubleJump = true;
   }
 
   function handleAction() {
     if (gameState === 'ready' || gameState === 'gameover') resetGame();
-    else if (gameState === 'playing' && benji.grounded) { benji.vy = JUMP_FORCE; benji.grounded = false; benji.ducking = false; playJump(); }
+    else if (gameState === 'playing' && benji.grounded) {
+      benji.vy = JUMP_FORCE; benji.grounded = false; benji.ducking = false;
+      benji.canDoubleJump = true;
+      playJump();
+    }
+    else if (gameState === 'playing' && !benji.grounded && benji.canDoubleJump) {
+      benji.vy = JUMP_FORCE * 0.85;
+      benji.canDoubleJump = false;
+      playJump();
+      addParticles(benji.x + 20, benji.y - 5, 6, 10);
+    }
   }
   function handleDuck(a) { if (gameState === 'playing' && benji.grounded) { benji.ducking = a; if (a) playDuck(); } }
 
