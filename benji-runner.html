@@ -263,10 +263,10 @@
 
   // ---- CACTUS DRAWING ----
   function drawCactus(type, x) {
-    const dk = nightMode ? '#aaa' : '#444';
-    const lt = nightMode ? '#eee' : '#6b8c42';
-    const md = nightMode ? '#ddd' : '#535353';
-    const hl = nightMode ? '#fff' : '#8ab648';
+    const dk = nightMode ? '#5a6a4a' : '#444';
+    const lt = nightMode ? '#7a8a6a' : '#6b8c42';
+    const md = nightMode ? '#6a7a5a' : '#535353';
+    const hl = nightMode ? '#8a9a78' : '#8ab648';
     const s = 3, g = GROUND_Y;
 
     if (type === 'small') {
@@ -492,7 +492,7 @@
     const by = benji.ducking ? benji.y - 22 : benji.y - benji.h + 6;
     const bh = benji.ducking ? 18 : benji.h - 10;
     let ox, oy, ow, oh;
-    if (o.type === 'bird') { ox = o.x + 3; oy = o.y; ow = o.w - 6; oh = o.h; }
+    if (o.type === 'bird') { ox = o.x + 5; oy = o.y + 2; ow = o.w - 10; oh = o.h - 4; }
     else if (o.type === 'tumbleweed') { ox = o.x + 2; oy = o.y - o.h; ow = o.w - 4; oh = o.h - 4; }
     else { ox = o.x + 3; oy = o.y - o.h; ow = o.w - 6; oh = o.h; }
     return bx < ox + ow && bx + bw > ox && by < oy + oh && by + bh > oy;
