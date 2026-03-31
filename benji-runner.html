@@ -446,17 +446,18 @@
   }
 
   function drawGround() {
-    // Sandy ground fill
-    ctx.fillStyle = nightMode ? '#2d2d3d' : '#e8dcc8';
+    const nb = nightBlend;
+    // Sandy ground fill (smooth transition)
+    ctx.fillStyle = lerpColor('#e8dcc8', '#2d2d3d', nb);
     ctx.fillRect(0, GROUND_Y + 2, W, H - GROUND_Y - 2);
     // Top edge
-    ctx.fillStyle = nightMode ? '#535353' : '#535353';
+    ctx.fillStyle = '#535353';
     ctx.fillRect(0, GROUND_Y + 2, W, 2);
     // Detail line
-    ctx.fillStyle = nightMode ? '#444' : '#c4b89a';
+    ctx.fillStyle = lerpColor('#c4b89a', '#444444', nb);
     ctx.fillRect(0, GROUND_Y + 4, W, 1);
     // Pebbles/stones
-    ctx.fillStyle = nightMode ? '#3d3d4d' : '#d4c8a8';
+    ctx.fillStyle = lerpColor('#d4c8a8', '#3d3d4d', nb);
     groundLines.forEach(g => ctx.fillRect(g.x, GROUND_Y + 7, g.w, 1));
   }
 
@@ -792,16 +793,18 @@
     popups = popups.filter(p => { p.y -= 1.2; p.life--; return p.life > 0; });
   }
 
+  // ---- COLOR UTILS ----
+  function lerpColor(a, b, t) {
+    const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+    const ar = ah >> 16, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+    const br = bh >> 16, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+    const rr = Math.round(ar + (br - ar) * t), rg = Math.round(ag + (bg - ag) * t), rb = Math.round(ab + (bb - ab) * t);
+    return '#' + ((rr << 16) | (rg << 8) | rb).toString(16).padStart(6, '0');
+  }
+
   function draw() {
     ctx.save(); ctx.translate(shakeX, shakeY);
     // Sky gradient (smooth night transition)
-    function lerpColor(a, b, t) {
-      const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
-      const ar = ah >> 16, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
-      const br = bh >> 16, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
-      const rr = Math.round(ar + (br - ar) * t), rg = Math.round(ag + (bg - ag) * t), rb = Math.round(ab + (bb - ab) * t);
-      return '#' + ((rr << 16) | (rg << 8) | rb).toString(16).padStart(6, '0');
-    }
     const nb = nightBlend;
     const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
     skyGrad.addColorStop(0, lerpColor('#c8ddf0', '#0d0d1a', nb));
