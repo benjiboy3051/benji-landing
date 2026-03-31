@@ -116,6 +116,20 @@
     osc.start(audioCtx.currentTime);
     osc.stop(audioCtx.currentTime + 0.1);
   }
+  function playNearMiss() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(600, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(900, audioCtx.currentTime + 0.1);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.15);
+  }
   function playTick() {
     ensureAudio();
     const osc = audioCtx.createOscillator();
@@ -732,6 +746,18 @@
       o.x -= speed;
       if (o.type === 'bird') { o.timer++; if (o.timer > 8) { o.timer = 0; o.frame = 1 - o.frame; } }
       if (o.type === 'tumbleweed') { o.rot += 0.15; o.x -= o.vx * 0.3; }
+
+      // Near miss detection: obstacle passes Benji with close vertical distance
+      if (!o.passed && o.x + (o.w || 24) < benji.x + 12) {
+        o.passed = true;
+        let obsY = o.type === 'bird' ? o.y : (o.y - o.h / 2);
+        let benjiY = benji.ducking ? benji.y - 10 : benji.y - benji.h / 2;
+        if (Math.abs(obsY - benjiY) < 35) {
+          score += 10;
+          popups.push({ x: benji.x + 50, y: benji.y - benji.h - 10, text: 'CLOSE! +10', life: 30 });
+          playNearMiss();
+        }
+      }
     });
     obstacles = obstacles.filter(o => o.x > -80);
 
