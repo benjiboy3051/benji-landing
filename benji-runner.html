@@ -54,6 +54,8 @@
   let shakeX = 0, shakeY = 0, shakeTimer = 0;
   let scoreFlash = 0;
   let lastMilestone = 0;
+  let popups = []; // floating "+100" text
+  let tumbleTimer = 0;
 
   // Web Audio for milestone ding
   let audioCtx = null;
@@ -271,6 +273,35 @@
     }
   }
 
+  // ---- TUMBLEWEED ----
+  function drawTumbleweed(x, y, rot) {
+    const col1 = nightMode ? '#998' : '#8b7355';
+    const col2 = nightMode ? '#776' : '#a0845c';
+    const col3 = nightMode ? '#665' : '#6b5b3a';
+    ctx.save();
+    ctx.translate(x + 12, y - 12);
+    ctx.rotate(rot);
+    const s = 2.5;
+    // Main circle of branches
+    for (let i = 0; i < 12; i++) {
+      const a = (i / 12) * Math.PI * 2;
+      ctx.fillStyle = i % 3 === 0 ? col1 : i % 3 === 1 ? col2 : col3;
+      ctx.fillRect(Math.cos(a) * 8 * s / 2.5 - 1, Math.sin(a) * 8 * s / 2.5 - 1, s * 1.2, s * 1.2);
+    }
+    // Center
+    ctx.fillStyle = col2;
+    ctx.fillRect(-s, -s, s * 2, s * 2);
+    ctx.fillRect(-s * 0.5, -s * 1.5, s, s * 3);
+    ctx.fillRect(-s * 1.5, -s * 0.5, s * 3, s);
+    // Spokes
+    ctx.fillStyle = col3;
+    for (let i = 0; i < 6; i++) {
+      const a = (i / 6) * Math.PI * 2;
+      ctx.fillRect(Math.cos(a) * 5 - 0.5, Math.sin(a) * 5 - 0.5, 1.5, 1.5);
+    }
+    ctx.restore();
+  }
+
   function drawBird(x, y, frame) {
     const col = nightMode ? '#ddd' : '#535353';
     const lt = nightMode ? '#eee' : '#666';
@@ -409,6 +440,8 @@
     // 1000+: full variety
     if (canBird && r < 0.1) {
       obstacles.push({ type: 'bird', x: W + 20, y: GROUND_Y - 25 - Math.random() * 50, w: 24, h: 15, frame: 0, timer: 0 });
+    } else if (r < 0.2 && score > 500) {
+      obstacles.push({ type: 'tumbleweed', x: W + 20, y: GROUND_Y, w: 28, h: 24, rot: 0, vx: speed * 0.6 + 2 });
     } else {
       const t = Math.random();
       if (t < 0.3) obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 24 });
@@ -420,6 +453,7 @@
 
   function drawObstacle(o) {
     if (o.type === 'bird') drawBird(o.x, o.y, o.frame);
+    else if (o.type === 'tumbleweed') drawTumbleweed(o.x, o.y, o.rot);
     else drawCactus(o.type, o.x);
   }
 
@@ -429,6 +463,7 @@
     const bh = benji.ducking ? 18 : benji.h - 10;
     let ox, oy, ow, oh;
     if (o.type === 'bird') { ox = o.x + 3; oy = o.y; ow = o.w - 6; oh = o.h; }
+    else if (o.type === 'tumbleweed') { ox = o.x + 2; oy = o.y - o.h; ow = o.w - 4; oh = o.h - 4; }
     else { ox = o.x + 3; oy = o.y - o.h; ow = o.w - 6; oh = o.h; }
     return bx < ox + ow && bx + bw > ox && by < oy + oh && by + bh > oy;
   }
@@ -468,6 +503,18 @@
       ctx.lineTo(x + len, y + (Math.random() - 0.5) * 4);
       ctx.stroke();
     }
+  }
+
+  function drawPopups() {
+    popups.forEach(p => {
+      const alpha = Math.min(1, p.life / 15);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = nightMode ? '#f5a623' : '#7C3AED';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'right';
+      ctx.fillText(p.text, p.x, p.y);
+    });
+    ctx.globalAlpha = 1;
   }
 
   function drawScore() {
@@ -548,7 +595,7 @@
 
     // Milestone flash
     const m = Math.floor(score / 100);
-    if (m > lastMilestone) { lastMilestone = m; scoreFlash = 12; playDing(); }
+    if (m > lastMilestone) { lastMilestone = m; scoreFlash = 12; playDing(); popups.push({ x: W - 40, y: 45, text: '+' + (m * 100), life: 40 }); }
 
     // Night toggle
     const prev = Math.floor((score - speed * 0.1) / 700), curr = Math.floor(score / 700);
@@ -580,6 +627,7 @@
     obstacles.forEach(o => {
       o.x -= speed;
       if (o.type === 'bird') { o.timer++; if (o.timer > 8) { o.timer = 0; o.frame = 1 - o.frame; } }
+      if (o.type === 'tumbleweed') { o.rot += 0.15; o.x -= o.vx * 0.3; }
     });
     obstacles = obstacles.filter(o => o.x > -80);
 
@@ -604,6 +652,9 @@
       m.x -= speed * 0.08;
       if (m.x + m.w < -10) { m.x = W + Math.random() * 40; m.h = 40 + Math.random() * 50; m.w = 80 + Math.random() * 60; }
     });
+
+    // Score popups
+    popups = popups.filter(p => { p.y -= 1.2; p.life--; return p.life > 0; });
   }
 
   function draw() {
@@ -619,7 +670,7 @@
     drawTitle();
 
     if (gameState === 'ready') { drawBenji(); drawReady(); }
-    else if (gameState === 'playing') { obstacles.forEach(drawObstacle); drawBenji(); drawScore(); }
+    else if (gameState === 'playing') { obstacles.forEach(drawObstacle); drawBenji(); drawPopups(); drawScore(); }
     else if (gameState === 'gameover') { obstacles.forEach(drawObstacle); drawParticles(); drawScore(); drawGameOver(); }
 
     ctx.restore();
@@ -629,7 +680,7 @@
 
   function resetGame() {
     gameState = 'playing'; score = 0; speed = BASE_SPEED;
-    obstacles = []; particles = []; nightMode = false;
+    obstacles = []; particles = []; nightMode = false; popups = [];
     mountains = [];
     for (let i = 0; i < 8; i++) {
       mountains.push({ x: i * 130 + Math.random() * 40, h: 40 + Math.random() * 50, w: 80 + Math.random() * 60 });
