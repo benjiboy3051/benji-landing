@@ -116,6 +116,29 @@
     osc.start(audioCtx.currentTime);
     osc.stop(audioCtx.currentTime + 0.1);
   }
+  function playTick() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(660, audioCtx.currentTime);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.1);
+  }
+  function playGo() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(523, audioCtx.currentTime);
+    osc.frequency.setValueAtTime(784, audioCtx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.2);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.2);
+  }
 
   // Reduced motion preference
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -659,7 +682,11 @@
 
     // Countdown state
     if (gameState === 'countdown') {
+      const prev = Math.ceil(countdown / 30);
       countdown--;
+      const curr = Math.ceil(countdown / 30);
+      if (curr !== prev && countdown > 0) playTick();
+      if (countdown === 30) playGo();
       if (countdown <= 0) gameState = 'playing';
       return;
     }
