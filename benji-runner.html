@@ -418,6 +418,23 @@
     ctx.globalAlpha = 1;
   }
 
+  function drawSpeedLines() {
+    if (speed < 7) return;
+    const intensity = (speed - 7) / (MAX_SPEED - 7);
+    const count = Math.floor(intensity * 12) + 2;
+    ctx.strokeStyle = nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < count; i++) {
+      const y = Math.random() * H;
+      const x = Math.random() * W * 0.3;
+      const len = 30 + Math.random() * 60 * intensity;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x + len, y + (Math.random() - 0.5) * 4);
+      ctx.stroke();
+    }
+  }
+
   function drawScore() {
     const s = String(Math.floor(score)).padStart(5, '0');
     const h = String(Math.floor(highScore)).padStart(5, '0');
@@ -556,6 +573,7 @@
     drawMountains();
     clouds.forEach(c => drawCloud(c.x, c.y, c.size));
     drawGround();
+    if (gameState === 'playing') drawSpeedLines();
     drawTitle();
 
     if (gameState === 'ready') { drawBenji(); drawReady(); }
