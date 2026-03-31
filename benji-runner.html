@@ -736,7 +736,19 @@
 
   function draw() {
     ctx.save(); ctx.translate(shakeX, shakeY);
-    ctx.fillStyle = nightMode ? '#1a1a2e' : '#f7f7f7'; ctx.fillRect(0, 0, W, H);
+    // Sky gradient
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    if (nightMode) {
+      skyGrad.addColorStop(0, '#0d0d1a');
+      skyGrad.addColorStop(0.6, '#1a1a2e');
+      skyGrad.addColorStop(1, '#252540');
+    } else {
+      skyGrad.addColorStop(0, '#c8ddf0');
+      skyGrad.addColorStop(0.5, '#e8eff7');
+      skyGrad.addColorStop(1, '#f7f7f7');
+    }
+    ctx.fillStyle = skyGrad;
+    ctx.fillRect(0, 0, W, H);
     drawStars();
     drawMoon();
     drawSun();
