@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Benji Runner</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #f7f7f7; display: flex; align-items: center; justify-content: center; font-family: monospace; }
+  canvas { display: block; image-rendering: pixelated; cursor: pointer; max-width: 100vw; max-height: 100vh; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const W = 800, H = 300;
+  canvas.width = W;
+  canvas.height = H;
+
+  const GROUND_Y = 220;
+  const GRAVITY = 0.55;
+  const JUMP_FORCE = -11;
+  const BASE_SPEED = 5;
+  const MAX_SPEED = 13;
+  const SPEED_INCREASE = 0.001;
+
+  let nightMode = false;
+  let score = 0;
+  let highScore = parseInt(localStorage.getItem('benjiHighScore')) || 0;
+  let speed = BASE_SPEED;
+  let gameState = 'ready'; // ready, playing, gameover
+  let frameCount = 0;
+  let obstacles = [];
+  let particles = [];
+  let groundLines = [];
+  let clouds = [];
+
+  // Initialize ground lines
+  for (let i = 0; i < 30; i++) {
+    groundLines.push({ x: Math.random() * W, w: 2 + Math.random() * 10 });
+  }
+
+  // Initialize clouds
+  for (let i = 0; i < 4; i++) {
+    clouds.push({ x: Math.random() * W, y: 30 + Math.random() * 60, size: 1 + Math.random() * 1.5 });
+  }
+
+  // Benji state
+  const benji = {
+    x: W - 100,
+    y: GROUND_Y,
+    w: 44,
+    h: 50,
+    vy: 0,
+    grounded: true,
+    ducking: false,
+    runFrame: 0,
+    runTimer: 0,
+    tailWag: 0
+  };
+
+  // ---- PIXEL ART DRAWING HELPERS ----
+  function setPixel(x, y, size) {
+    ctx.fillRect(Math.floor(x), Math.floor(y), size, size);
+  }
+
+  function drawPixelArray(arr, ox, oy, ps, flip) {
+    for (let r = 0; r < arr.length; r++) {
+      for (let c = 0; c < arr[r].length; c++) {
+        if (arr[r][c]) {
+          const px = flip ? ox + (arr[r].length - 1 - c) * ps : ox + c * ps;
+          ctx.fillStyle = arr[r][c] === 2 ? (nightMode ? '#fff' : '#333') :
+                          arr[r][c] === 3 ? '#f5a623' :
+                          arr[r][c] === 4 ? '#e74c3c' :
+                          arr[r][c] === 5 ? '#f39c12' :
+                          arr[r][c] === 1 ? (nightMode ? '#ddd' : '#535353') : (nightMode ? '#fff' : '#333');
+          setPixel(px, oy + r * ps, ps);
+        }
+      }
+    }
+  }
+
+  // Benji pixel art - running pose 1 (legs apart)
+  const benjiRun1 = [
+    [0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,1,1,2,2,2,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,1,1,2,2,2,2,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,5],
+    [0,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,5,5,5],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,5,5,0],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0],
+    [0,0,0,2,2,0,0,2,2,2,0,0,2,2,0,0,0,0,0,0,0],
+    [0,0,0,2,0,0,0,0,2,0,0,0,0,2,0,0,0,0,0,0,0],
+    [0,0,2,2,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0],
+    [0,0,2,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0],
+  ];
+
+  // Running pose 2 (legs together)
+  const benjiRun2 = [
+    [0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,1,1,2,2,2,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,1,1,2,2,2,2,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,5],
+    [0,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,5,5,5],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,5,5,0],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0,0],
+    [0,0,0,2,2,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0],
+    [0,0,0,2,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0,0],
+  ];
+
+  // Ducking pose
+  const benjiDuck = [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,5],
+    [0,0,0,0,0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,5,5,5],
+    [0,0,0,0,0,0,0,0,2,2,1,1,2,2,2,0,0,0,0,5,5,5,0,0],
+    [0,0,0,0,0,0,0,0,2,2,1,1,2,2,2,2,2,2,5,5,0,0,0,0],
+    [0,0,0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0],
+    [0,0,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0],
+    [0,0,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,2,2,0,0,2,2,2,0,0,2,2,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,2,0,0,0,0,2,0,0,0,0,2,0,0,0,0,0,0,0,0,0,0,0],
+    [0,2,2,0,0,0,0,0,0,0,0,0,2,2,0,0,0,0,0,0,0,0,0,0],
+  ];
+
+  // Jumping pose
+  const benjiJump = [
+    [0,0,0,0,0,0,2,2,2,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,1,1,2,2,2,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,1,1,2,2,2,2,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,2,2,2,2,2,2,2,2,2,0,0,0,0,0,5],
+    [0,0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,5,5,5],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,2,5,5,0],
+    [0,0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0],
+    [0,0,0,2,2,2,2,2,2,2,2,2,2,0,0,0,0,0,0,0,0],
+    [0,0,0,2,0,0,0,2,2,2,0,0,0,2,0,0,0,0,0,0,0],
+    [0,0,2,2,0,0,0,0,2,0,0,0,0,2,2,0,0,0,0,0,0],
+    [0,0,2,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0,0],
+    [0,2,0,0,0,0,0,0,0,0,0,0,0,0,0,2,0,0,0,0,0],
+  ];
+
+  // ---- OBSTACLE DRAWING ----
+  function drawSmallCactus(x) {
+    const col = nightMode ? '#ddd' : '#535353';
+    ctx.fillStyle = col;
+    const s = 3;
+    // Main stem
+    for (let i = 0; i < 8; i++) setPixel(x + 3*s, GROUND_Y - (i+1)*s, s);
+    // Left arm
+    setPixel(x + s, GROUND_Y - 5*s, s);
+    setPixel(x + s, GROUND_Y - 6*s, s);
+    setPixel(x, GROUND_Y - 6*s, s);
+    // Right arm
+    setPixel(x + 5*s, GROUND_Y - 4*s, s);
+    setPixel(x + 5*s, GROUND_Y - 5*s, s);
+    setPixel(x + 6*s, GROUND_Y - 5*s, s);
+  }
+
+  function drawMediumCactus(x) {
+    const col = nightMode ? '#ddd' : '#535353';
+    ctx.fillStyle = col;
+    const s = 3;
+    // Main stem
+    for (let i = 0; i < 12; i++) setPixel(x + 3*s, GROUND_Y - (i+1)*s, s);
+    // Left arm
+    setPixel(x + s, GROUND_Y - 8*s, s);
+    setPixel(x + s, GROUND_Y - 9*s, s);
+    setPixel(x + s, GROUND_Y - 10*s, s);
+    setPixel(x, GROUND_Y - 10*s, s);
+    // Right arm
+    setPixel(x + 5*s, GROUND_Y - 6*s, s);
+    setPixel(x + 5*s, GROUND_Y - 7*s, s);
+    setPixel(x + 6*s, GROUND_Y - 7*s, s);
+    setPixel(x + 6*s, GROUND_Y - 8*s, s);
+  }
+
+  function drawLargeCactus(x) {
+    const col = nightMode ? '#ddd' : '#535353';
+    ctx.fillStyle = col;
+    const s = 3;
+    // Main stem
+    for (let i = 0; i < 17; i++) setPixel(x + 4*s, GROUND_Y - (i+1)*s, s);
+    // Left arm bottom
+    setPixel(x + 2*s, GROUND_Y - 10*s, s);
+    setPixel(x + 2*s, GROUND_Y - 11*s, s);
+    setPixel(x + 2*s, GROUND_Y - 12*s, s);
+    setPixel(x + s, GROUND_Y - 12*s, s);
+    setPixel(x, GROUND_Y - 12*s, s);
+    // Right arm top
+    setPixel(x + 6*s, GROUND_Y - 6*s, s);
+    setPixel(x + 6*s, GROUND_Y - 7*s, s);
+    setPixel(x + 6*s, GROUND_Y - 8*s, s);
+    setPixel(x + 7*s, GROUND_Y - 8*s, s);
+    setPixel(x + 8*s, GROUND_Y - 8*s, s);
+  }
+
+  function drawBird(x, y, frame) {
+    const col = nightMode ? '#ddd' : '#535353';
+    ctx.fillStyle = col;
+    const s = 3;
+    // Body
+    for (let i = 0; i < 5; i++) setPixel(x + i*s, y, s);
+    for (let i = 0; i < 4; i++) setPixel(x + i*s, y + s, s);
+    // Beak
+    ctx.fillStyle = nightMode ? '#f5a623' : '#f5a623';
+    setPixel(x + 5*s, y, s);
+    setPixel(x + 6*s, y, s);
+    // Eye
+    ctx.fillStyle = nightMode ? '#fff' : '#333';
+    setPixel(x + s, y, s);
+    // Wings
+    ctx.fillStyle = col;
+    if (frame === 0) {
+      // Wings up
+      setPixel(x + 2*s, y - s, s);
+      setPixel(x + 3*s, y - 2*s, s);
+      setPixel(x + 4*s, y - s, s);
+    } else {
+      // Wings down
+      setPixel(x + 2*s, y + 2*s, s);
+      setPixel(x + 3*s, y + 3*s, s);
+      setPixel(x + 4*s, y + 2*s, s);
+    }
+  }
+
+  // ---- CLOUD DRAWING ----
+  function drawCloud(x, y, size) {
+    ctx.fillStyle = nightMode ? 'rgba(255,255,255,0.15)' : 'rgba(0,0,0,0.08)';
+    const s = 4 * size;
+    ctx.fillRect(x, y, s*4, s);
+    ctx.fillRect(x - s, y + s*0.3, s*6, s*0.7);
+    ctx.fillRect(x + s*0.5, y - s*0.5, s*3, s*0.7);
+  }
+
+  // ---- GROUND ----
+  function drawGround() {
+    ctx.fillStyle = nightMode ? '#535353' : '#535353';
+    ctx.fillRect(0, GROUND_Y + 2, W, 2);
+
+    ctx.fillStyle = nightMode ? '#444' : '#888';
+    groundLines.forEach(g => {
+      ctx.fillRect(g.x, GROUND_Y + 6, g.w, 1);
+    });
+  }
+
+  // ---- BENJI DRAWING ----
+  function drawBenji() {
+    let sprite, ps = 2.2;
+    let drawY = benji.y - benji.h;
+    let drawX = benji.x;
+
+    if (!benji.grounded) {
+      sprite = benjiJump;
+      ps = 2.2;
+    } else if (benji.ducking) {
+      sprite = benjiDuck;
+      ps = 2.2;
+      drawY = benji.y - 26;
+      drawX = benji.x - 10;
+    } else {
+      sprite = benji.runFrame === 0 ? benjiRun1 : benjiRun2;
+      ps = 2.2;
+    }
+
+    drawPixelArray(sprite, drawX, drawY, ps, false);
+  }
+
+  // ---- OBSTACLE MANAGEMENT ----
+  function spawnObstacle() {
+    const minGap = Math.max(60, 150 - score * 0.1);
+    if (obstacles.length > 0) {
+      const last = obstacles[obstacles.length - 1];
+      if (W - last.x < minGap) return;
+    }
+
+    const r = Math.random();
+    const canBird = score > 300;
+
+    if (canBird && r < 0.2) {
+      const birdY = GROUND_Y - 30 - Math.random() * 40;
+      obstacles.push({ type: 'bird', x: W + 20, y: birdY, w: 24, h: 15, frame: 0, timer: 0 });
+    } else {
+      const typeR = Math.random();
+      if (typeR < 0.4) {
+        obstacles.push({ type: 'cactus_small', x: W + 20, y: GROUND_Y, w: 21, h: 27 });
+      } else if (typeR < 0.75) {
+        obstacles.push({ type: 'cactus_medium', x: W + 20, y: GROUND_Y, w: 21, h: 39 });
+      } else {
+        obstacles.push({ type: 'cactus_large', x: W + 20, y: GROUND_Y, w: 27, h: 54 });
+      }
+    }
+  }
+
+  function drawObstacle(o) {
+    switch (o.type) {
+      case 'cactus_small': drawSmallCactus(o.x); break;
+      case 'cactus_medium': drawMediumCactus(o.x); break;
+      case 'cactus_large': drawLargeCactus(o.x); break;
+      case 'bird': drawBird(o.x, o.y, o.frame); break;
+    }
+  }
+
+  // ---- COLLISION ----
+  function checkCollision(o) {
+    const bx = benji.x + 8;
+    const by = benji.ducking ? benji.y - 26 : benji.y - benji.h + 5;
+    const bw = benji.ducking ? 30 : 28;
+    const bh = benji.ducking ? 22 : benji.h - 8;
+
+    const ox = o.type === 'bird' ? o.x : o.x + 3;
+    const oy = o.type === 'bird' ? o.y : o.y - o.h;
+    const ow = o.type === 'bird' ? o.w - 6 : o.w - 6;
+    const oh = o.h;
+
+    return bx < ox + ow && bx + bw > ox && by < oy + oh && by + bh > oy;
+  }
+
+  // ---- PARTICLES ----
+  function addParticles(x, y) {
+    for (let i = 0; i < 8; i++) {
+      particles.push({
+        x: x + Math.random() * 20,
+        y: y - Math.random() * 10,
+        vx: -Math.random() * 3 - 1,
+        vy: -Math.random() * 3,
+        life: 20 + Math.random() * 15,
+        size: 2 + Math.random() * 3
+      });
+    }
+  }
+
+  function updateParticles() {
+    particles = particles.filter(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.1;
+      p.life--;
+      return p.life > 0;
+    });
+  }
+
+  function drawParticles() {
+    ctx.fillStyle = nightMode ? '#999' : '#aaa';
+    particles.forEach(p => {
+      ctx.globalAlpha = p.life / 35;
+      ctx.fillRect(p.x, p.y, p.size, p.size);
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  // ---- SCORE DISPLAY ----
+  function drawScore() {
+    ctx.font = '14px monospace';
+    ctx.fillStyle = nightMode ? '#fff' : '#535353';
+    ctx.textAlign = 'right';
+    const scoreStr = String(Math.floor(score)).padStart(5, '0');
+    ctx.fillText(scoreStr, W - 20, 25);
+
+    if (highScore > 0) {
+      const hiStr = String(Math.floor(highScore)).padStart(5, '0');
+      ctx.fillText('HI ' + hiStr, W - 100, 25);
+    }
+  }
+
+  // ---- READY SCREEN ----
+  function drawReady() {
+    ctx.fillStyle = nightMode ? '#fff' : '#535353';
+    ctx.font = '16px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('Press SPACE or tap to start', W / 2, H / 2 - 20);
+
+    // Draw play icon
+    const cx = W / 2, cy = H / 2 + 20;
+    ctx.beginPath();
+    ctx.moveTo(cx - 10, cy - 12);
+    ctx.lineTo(cx - 10, cy + 12);
+    ctx.lineTo(cx + 12, cy);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ---- GAME OVER ----
+  function drawGameOver() {
+    ctx.fillStyle = nightMode ? '#fff' : '#535353';
+    ctx.font = '18px monospace';
+    ctx.textAlign = 'center';
+
+    // Game Over text
+    ctx.fillText('G A M E   O V E R', W / 2, H / 2 - 30);
+
+    // Restart icon (circular arrow)
+    const cx = W / 2, cy = H / 2 + 10;
+    ctx.strokeStyle = nightMode ? '#fff' : '#535353';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, 15, 0.5, Math.PI * 1.8);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(cx + 12, cy - 10);
+    ctx.lineTo(cx + 18, cy - 2);
+    ctx.lineTo(cx + 10, cy - 2);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.font = '12px monospace';
+    ctx.fillText('Press SPACE or tap to restart', W / 2, H / 2 + 45);
+  }
+
+  // ---- MAIN LOOP ----
+  function update() {
+    frameCount++;
+
+    if (gameState === 'playing') {
+      // Speed up
+      speed = Math.min(MAX_SPEED, BASE_SPEED + score * SPEED_INCREASE);
+
+      // Score
+      score += speed * 0.1;
+
+      // Day/night toggle
+      const prevCycle = Math.floor((score - speed * 0.1) / 700);
+      const currCycle = Math.floor(score / 700);
+      if (currCycle !== prevCycle) {
+        nightMode = !nightMode;
+      }
+
+      // Benji physics
+      if (!benji.grounded) {
+        benji.vy += GRAVITY;
+        benji.y += benji.vy;
+        if (benji.y >= GROUND_Y) {
+          benji.y = GROUND_Y;
+          benji.vy = 0;
+          benji.grounded = true;
+        }
+      }
+
+      // Benji animation
+      if (benji.grounded && !benji.ducking) {
+        benji.runTimer++;
+        if (benji.runTimer > 6) {
+          benji.runTimer = 0;
+          benji.runFrame = 1 - benji.runFrame;
+        }
+      }
+
+      // Tail wag
+      benji.tailWag = Math.sin(frameCount * 0.3) * 2;
+
+      // Spawn obstacles
+      spawnObstacle();
+
+      // Update obstacles
+      obstacles.forEach(o => {
+        o.x -= speed;
+        if (o.type === 'bird') {
+          o.timer++;
+          if (o.timer > 10) {
+            o.timer = 0;
+            o.frame = 1 - o.frame;
+          }
+        }
+      });
+      obstacles = obstacles.filter(o => o.x > -60);
+
+      // Check collisions
+      for (const o of obstacles) {
+        if (checkCollision(o)) {
+          gameState = 'gameover';
+          if (score > highScore) {
+            highScore = Math.floor(score);
+            localStorage.setItem('benjiHighScore', highScore);
+          }
+          addParticles(benji.x + 20, benji.y - 20);
+          break;
+        }
+      }
+
+      // Ground lines
+      groundLines.forEach(g => {
+        g.x -= speed * 0.5;
+        if (g.x < -15) {
+          g.x = W + Math.random() * 20;
+          g.w = 2 + Math.random() * 10;
+        }
+      });
+
+      // Clouds
+      clouds.forEach(c => {
+        c.x -= speed * 0.15;
+        if (c.x < -50) {
+          c.x = W + 50;
+          c.y = 30 + Math.random() * 60;
+        }
+      });
+    }
+
+    if (gameState === 'gameover') {
+      updateParticles();
+    }
+  }
+
+  function draw() {
+    // Background
+    ctx.fillStyle = nightMode ? '#1a1a2e' : '#f7f7f7';
+    ctx.fillRect(0, 0, W, H);
+
+    // Clouds
+    clouds.forEach(c => drawCloud(c.x, c.y, c.size));
+
+    // Ground
+    drawGround();
+
+    if (gameState === 'ready') {
+      drawBenji();
+      drawReady();
+    } else if (gameState === 'playing') {
+      obstacles.forEach(drawObstacle);
+      drawBenji();
+      drawScore();
+    } else if (gameState === 'gameover') {
+      obstacles.forEach(drawObstacle);
+      drawParticles();
+      drawScore();
+      drawGameOver();
+    }
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  // ---- INPUT ----
+  function handleAction() {
+    if (gameState === 'ready') {
+      gameState = 'playing';
+      score = 0;
+      speed = BASE_SPEED;
+      obstacles = [];
+      particles = [];
+      nightMode = false;
+      benji.y = GROUND_Y;
+      benji.vy = 0;
+      benji.grounded = true;
+      benji.ducking = false;
+    } else if (gameState === 'playing') {
+      if (benji.grounded) {
+        benji.vy = JUMP_FORCE;
+        benji.grounded = false;
+      }
+    } else if (gameState === 'gameover') {
+      gameState = 'playing';
+      score = 0;
+      speed = BASE_SPEED;
+      obstacles = [];
+      particles = [];
+      nightMode = false;
+      benji.y = GROUND_Y;
+      benji.vy = 0;
+      benji.grounded = true;
+      benji.ducking = false;
+    }
+  }
+
+  function handleDuck(active) {
+    if (gameState === 'playing' && benji.grounded) {
+      benji.ducking = active;
+    }
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+      e.preventDefault();
+      handleAction();
+    }
+    if (e.code === 'ArrowDown') {
+      e.preventDefault();
+      handleDuck(true);
+    }
+  });
+
+  document.addEventListener('keyup', e => {
+    if (e.code === 'ArrowDown') {
+      handleDuck(false);
+    }
+  });
+
+  canvas.addEventListener('mousedown', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const y = (e.clientY - rect.top) / rect.height * H;
+    if (y > H * 0.6 && gameState === 'playing') {
+      handleDuck(true);
+    } else {
+      handleAction();
+    }
+  });
+
+  canvas.addEventListener('mouseup', () => {
+    handleDuck(false);
+  });
+
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    const rect = canvas.getBoundingClientRect();
+    const y = (e.touches[0].clientY - rect.top) / rect.height * H;
+    if (y > H * 0.6 && gameState === 'playing') {
+      handleDuck(true);
+    } else {
+      handleAction();
+    }
+  }, { passive: false });
+
+  canvas.addEventListener('touchend', e => {
+    e.preventDefault();
+    handleDuck(false);
+  }, { passive: false });
+
+  // ---- START ----
+  loop();
+})();
+</script>
+</body>
+</html>
