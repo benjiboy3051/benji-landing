@@ -36,8 +36,8 @@
   const GROUND_Y = 220;
   const GRAVITY = 0.55;
   const JUMP_FORCE = -11;
-  const BASE_SPEED = 6;
-  const MAX_SPEED = 14;
+  const BASE_SPEED = 5;
+  const MAX_SPEED = 13;
   const SPEED_INCREASE = 0.001;
 
   let nightMode = false;
@@ -380,20 +380,27 @@
 
   // ---- OBSTACLE MANAGEMENT ----
   function spawnObstacle() {
-    // Min gap shrinks as speed increases
-    const minGap = Math.max(80, 200 - speed * 10);
+    // Grace period: no obstacles for first ~2 seconds
+    if (obstacles.length === 0 && score < 30) return;
+
+    // Min gap starts large and shrinks as speed increases
+    const minGap = Math.max(100, 280 - speed * 15);
     if (obstacles.length > 0) {
       const last = obstacles[obstacles.length - 1];
       if (W - last.x < minGap) return;
     }
 
-    // Don't spawn too close after start
-    if (obstacles.length === 0 && score < 20) return;
-
     const r = Math.random();
-    const canBird = score > 400;
+    // Birds only appear after score 500
+    const canBird = score > 500;
 
-    if (canBird && r < 0.15) {
+    // Early game: only small cacti (first 200 points)
+    if (score < 200) {
+      obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 27 });
+      return;
+    }
+
+    if (canBird && r < 0.12) {
       const birdY = GROUND_Y - 25 - Math.random() * 50;
       obstacles.push({ type: 'bird', x: W + 20, y: birdY, w: 24, h: 15, frame: 0, timer: 0 });
     } else {
