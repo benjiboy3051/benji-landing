@@ -54,6 +54,23 @@
   let scoreFlash = 0;
   let lastMilestone = 0;
 
+  // Web Audio for milestone ding
+  let audioCtx = null;
+  function playDing() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(880, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1320, audioCtx.currentTime + 0.06);
+    gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.25);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.25);
+  }
+
   // Init ground
   for (let i = 0; i < 30; i++) {
     groundLines.push({ x: Math.random() * W, w: 2 + Math.random() * 10 });
@@ -419,7 +436,7 @@
 
     // Milestone flash
     const m = Math.floor(score / 100);
-    if (m > lastMilestone) { lastMilestone = m; scoreFlash = 12; }
+    if (m > lastMilestone) { lastMilestone = m; scoreFlash = 12; playDing(); }
 
     // Night toggle
     const prev = Math.floor((score - speed * 0.1) / 700), curr = Math.floor(score / 700);
