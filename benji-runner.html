@@ -11,7 +11,7 @@
 </style>
 </head>
 <body>
-<canvas id="c"></canvas>
+<canvas id="c" role="img" aria-label="Benji Runner - an endless runner game. Press Space to jump, Down arrow to duck." tabindex="0"></canvas>
 <script>
 (() => {
   const canvas = document.getElementById('c');
@@ -100,6 +100,23 @@
     osc.start(audioCtx.currentTime);
     osc.stop(audioCtx.currentTime + 0.4);
   }
+  function playDuck() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(200, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.08, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.1);
+  }
+
+  // Reduced motion preference
+  const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   // Init ground
   for (let i = 0; i < 30; i++) {
@@ -494,7 +511,7 @@
   }
 
   function drawSpeedLines() {
-    if (speed < 7) return;
+    if (speed < 7 || prefersReducedMotion) return;
     const intensity = (speed - 7) / (MAX_SPEED - 7);
     const count = Math.floor(intensity * 12) + 2;
     ctx.strokeStyle = nightMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)';
@@ -643,7 +660,7 @@
 
     for (const o of obstacles) {
       if (checkCollision(o)) {
-        gameState = 'gameover'; shakeTimer = 15; playDeath();
+        gameState = 'gameover'; shakeTimer = prefersReducedMotion ? 0 : 15; playDeath();
         if (score > highScore) { highScore = Math.floor(score); localStorage.setItem('benjiHighScore', highScore); }
         addParticles(benji.x + 20, benji.y - 20, 12, 30);
         break;
@@ -703,7 +720,7 @@
     if (gameState === 'ready' || gameState === 'gameover') resetGame();
     else if (gameState === 'playing' && benji.grounded) { benji.vy = JUMP_FORCE; benji.grounded = false; benji.ducking = false; playJump(); }
   }
-  function handleDuck(a) { if (gameState === 'playing' && benji.grounded) benji.ducking = a; }
+  function handleDuck(a) { if (gameState === 'playing' && benji.grounded) { benji.ducking = a; if (a) playDuck(); } }
 
   document.addEventListener('keydown', e => {
     if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); handleAction(); }
@@ -727,6 +744,9 @@
   }, { passive: false });
   canvas.addEventListener('touchend', e => { e.preventDefault(); handleDuck(false); }, { passive: false });
   window.addEventListener('keydown', e => { if (e.code === 'Space') e.preventDefault(); });
+
+  // Auto-focus canvas for keyboard
+  canvas.focus();
 
   loop();
 })();
