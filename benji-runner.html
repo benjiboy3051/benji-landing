@@ -46,6 +46,7 @@
   let highScore = parseInt(localStorage.getItem('benjiHighScore')) || 0;
   let gameState = 'ready';
   let paused = false;
+  let countdown = 0; // frames remaining in countdown
   let frameCount = 0;
   let obstacles = [];
   let particles = [];
@@ -630,6 +631,23 @@
     ctx.fillText('Press P or Esc to resume', W/2, H/2 + 20);
   }
 
+  function drawCountdown() {
+    const num = Math.ceil(countdown / 30); // 3, 2, 1
+    const text = countdown > 30 ? String(num) : 'GO!';
+    const pulse = 1 + Math.sin(countdown * 0.3) * 0.1;
+    ctx.save();
+    ctx.translate(W / 2, H / 2);
+    ctx.scale(pulse, pulse);
+    ctx.fillStyle = countdown > 30
+      ? (nightMode ? '#fff' : '#535353')
+      : (nightMode ? '#f5a623' : '#7C3AED');
+    ctx.font = 'bold 48px monospace';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 0, 0);
+    ctx.restore();
+  }
+
   // ---- MAIN LOOP ----
   function update() {
     frameCount++;
@@ -639,6 +657,12 @@
       shakeY = (Math.random() - 0.5) * shakeTimer * 0.5;
     } else { shakeX = 0; shakeY = 0; }
 
+    // Countdown state
+    if (gameState === 'countdown') {
+      countdown--;
+      if (countdown <= 0) gameState = 'playing';
+      return;
+    }
     if (gameState !== 'playing') return;
     if (paused) return;
 
@@ -723,6 +747,7 @@
     drawTitle();
 
     if (gameState === 'ready') { drawBenji(); drawReady(); }
+    else if (gameState === 'countdown') { drawBenji(); drawCountdown(); }
     else if (gameState === 'playing') { obstacles.forEach(drawObstacle); drawBenji(); drawPopups(); drawScore(); if (paused) drawPaused(); }
     else if (gameState === 'gameover') { obstacles.forEach(drawObstacle); drawParticles(); drawScore(); drawGameOver(); }
 
@@ -732,7 +757,8 @@
   function loop() { update(); draw(); requestAnimationFrame(loop); }
 
   function resetGame() {
-    gameState = 'playing'; score = 0; speed = BASE_SPEED;
+    gameState = 'countdown'; countdown = 100;
+    score = 0; speed = BASE_SPEED;
     obstacles = []; particles = []; nightMode = false; popups = [];
     mountains = [];
     for (let i = 0; i < 8; i++) {
