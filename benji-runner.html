@@ -482,6 +482,14 @@
       if (benji.runTimer > animSpeed) { benji.runTimer = 0; benji.runFrame = 1 - benji.runFrame; }
     }
 
+    if (benji.grounded && !benji.ducking && Math.random() < 0.3) {
+      particles.push({
+        x: benji.x + 5 + Math.random() * 8, y: benji.y - 2,
+        vx: -speed * 0.4 - Math.random(), vy: -Math.random() * 1.5,
+        life: 10 + Math.random() * 8, size: 1.5 + Math.random() * 2
+      });
+    }
+
     spawnObstacle();
 
     obstacles.forEach(o => {
