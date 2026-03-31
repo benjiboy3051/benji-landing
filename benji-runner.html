@@ -404,6 +404,11 @@
     if (gameState === 'gameover') sprite = deadSprite;
     else if (!benji.grounded) sprite = jumpSprite;
     else if (benji.ducking) { sprite = duckSprite; drawY = benji.y - 26; drawX = benji.x - 12; }
+    else if (gameState === 'ready') {
+      // Idle bounce animation
+      sprite = run1;
+      drawY -= Math.sin(frameCount * 0.06) * 3;
+    }
     else sprite = benji.runFrame === 0 ? run1 : run2;
 
     drawSprite(sprite, drawX, drawY, ps);
@@ -537,6 +542,11 @@
     ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
     ctx.fillText('BENJI RUNNER', 20, 25);
     ctx.font = '14px monospace'; ctx.fillText('🐾', 152, 25);
+    // Day/night badge
+    if (gameState === 'playing') {
+      ctx.font = '12px monospace';
+      ctx.fillText(nightMode ? '🌙' : '☀️', 170, 25);
+    }
   }
 
   function drawReady() {
