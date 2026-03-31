@@ -470,6 +470,11 @@
     ctx.font = '14px monospace'; ctx.textAlign = 'right';
     ctx.fillStyle = scoreFlash > 0 ? (nightMode ? '#f5a623' : '#7C3AED') : (nightMode ? '#fff' : '#535353');
     if (scoreFlash > 0) scoreFlash--;
+    if (scoreFlash > 0) {
+      ctx.strokeStyle = nightMode ? 'rgba(245,166,35,0.5)' : 'rgba(124,58,237,0.5)';
+      ctx.lineWidth = 4 * (scoreFlash / 12);
+      ctx.strokeRect(2, 2, W - 4, H - 4);
+    }
     ctx.fillText(s, W - 20, 25);
     if (highScore > 0) { ctx.fillStyle = nightMode ? '#aaa' : '#999'; ctx.fillText('HI ' + h, W - 100, 25); }
   }
