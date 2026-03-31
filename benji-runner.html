@@ -242,28 +242,32 @@
 
   // ---- CACTUS DRAWING ----
   function drawCactus(type, x) {
-    const col = nightMode ? '#ddd' : '#535353';
-    ctx.fillStyle = col;
+    const dk = nightMode ? '#aaa' : '#444';
+    const lt = nightMode ? '#eee' : '#6b8c42';
+    const md = nightMode ? '#ddd' : '#535353';
+    const hl = nightMode ? '#fff' : '#8ab648';
     const s = 3, g = GROUND_Y;
 
     if (type === 'small') {
-      for (let i = 0; i < 7; i++) px(x + 3*s, g - (i+1)*s, s);
-      px(x + s, g - 4*s, s); px(x + s, g - 5*s, s); px(x, g - 5*s, s);
-      px(x + 5*s, g - 3*s, s); px(x + 5*s, g - 4*s, s); px(x + 6*s, g - 4*s, s);
+      for (let i = 0; i < 7; i++) { ctx.fillStyle = (i % 2 === 0) ? lt : dk; px(x + 3*s, g - (i+1)*s, s); }
+      ctx.fillStyle = hl; px(x + s, g - 4*s, s); ctx.fillStyle = dk; px(x + s, g - 5*s, s); px(x, g - 5*s, s);
+      ctx.fillStyle = hl; px(x + 5*s, g - 3*s, s); ctx.fillStyle = dk; px(x + 5*s, g - 4*s, s); px(x + 6*s, g - 4*s, s);
+      ctx.fillStyle = lt; px(x + 3*s, g - 1*s, s); px(x + 3*s, g, s);
     } else if (type === 'medium') {
-      for (let i = 0; i < 11; i++) px(x + 3*s, g - (i+1)*s, s);
-      px(x + s, g - 7*s, s); px(x + s, g - 8*s, s); px(x + s, g - 9*s, s); px(x, g - 9*s, s);
-      px(x + 5*s, g - 5*s, s); px(x + 5*s, g - 6*s, s); px(x + 6*s, g - 6*s, s); px(x + 6*s, g - 7*s, s);
+      for (let i = 0; i < 11; i++) { ctx.fillStyle = (i % 2 === 0) ? lt : dk; px(x + 3*s, g - (i+1)*s, s); }
+      ctx.fillStyle = hl; px(x + s, g - 7*s, s); ctx.fillStyle = md; px(x + s, g - 8*s, s); ctx.fillStyle = dk; px(x + s, g - 9*s, s); px(x, g - 9*s, s);
+      ctx.fillStyle = hl; px(x + 5*s, g - 5*s, s); ctx.fillStyle = md; px(x + 5*s, g - 6*s, s); ctx.fillStyle = dk; px(x + 6*s, g - 6*s, s); px(x + 6*s, g - 7*s, s);
+      ctx.fillStyle = lt; px(x + 3*s, g - 1*s, s); px(x + 3*s, g, s);
     } else if (type === 'large') {
-      for (let i = 0; i < 15; i++) px(x + 4*s, g - (i+1)*s, s);
-      px(x + 2*s, g - 9*s, s); px(x + 2*s, g - 10*s, s); px(x + 2*s, g - 11*s, s);
-      px(x + s, g - 11*s, s); px(x, g - 11*s, s);
-      px(x + 6*s, g - 5*s, s); px(x + 6*s, g - 6*s, s); px(x + 6*s, g - 7*s, s);
-      px(x + 7*s, g - 7*s, s); px(x + 8*s, g - 7*s, s);
+      for (let i = 0; i < 15; i++) { ctx.fillStyle = (i % 2 === 0) ? lt : dk; px(x + 4*s, g - (i+1)*s, s); }
+      ctx.fillStyle = hl; px(x + 2*s, g - 9*s, s); ctx.fillStyle = md; px(x + 2*s, g - 10*s, s); ctx.fillStyle = dk; px(x + 2*s, g - 11*s, s); px(x + s, g - 11*s, s); px(x, g - 11*s, s);
+      ctx.fillStyle = hl; px(x + 6*s, g - 5*s, s); ctx.fillStyle = md; px(x + 6*s, g - 6*s, s); ctx.fillStyle = dk; px(x + 6*s, g - 7*s, s); px(x + 7*s, g - 7*s, s); px(x + 8*s, g - 7*s, s);
+      ctx.fillStyle = lt; px(x + 4*s, g - 1*s, s); px(x + 4*s, g, s);
     } else if (type === 'group_small') {
-      for (let i = 0; i < 5; i++) px(x + 2*s, g - (i+1)*s, s);
-      for (let i = 0; i < 6; i++) px(x + 6*s, g - (i+1)*s, s);
-      px(x, g - 3*s, s); px(x + 8*s, g - 4*s, s);
+      for (let i = 0; i < 5; i++) { ctx.fillStyle = (i % 2 === 0) ? lt : dk; px(x + 2*s, g - (i+1)*s, s); }
+      for (let i = 0; i < 6; i++) { ctx.fillStyle = (i % 2 === 0) ? lt : dk; px(x + 6*s, g - (i+1)*s, s); }
+      ctx.fillStyle = hl; px(x, g - 3*s, s); ctx.fillStyle = dk; px(x + 8*s, g - 4*s, s);
+      ctx.fillStyle = lt; px(x + 2*s, g - 1*s, s); px(x + 6*s, g - 1*s, s);
     }
   }
 
