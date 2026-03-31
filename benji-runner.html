@@ -44,6 +44,7 @@
   let score = 0;
   let highScore = parseInt(localStorage.getItem('benjiHighScore')) || 0;
   let gameState = 'ready';
+  let paused = false;
   let frameCount = 0;
   let obstacles = [];
   let particles = [];
@@ -605,6 +606,17 @@
     ctx.fillText('Press SPACE or tap to restart', W/2, H/2 + 68);
   }
 
+  function drawPaused() {
+    ctx.fillStyle = nightMode ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.6)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = nightMode ? '#fff' : '#535353';
+    ctx.font = 'bold 24px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('P A U S E D', W/2, H/2 - 10);
+    ctx.font = '12px monospace';
+    ctx.fillStyle = nightMode ? '#aaa' : '#999';
+    ctx.fillText('Press P or Esc to resume', W/2, H/2 + 20);
+  }
+
   // ---- MAIN LOOP ----
   function update() {
     frameCount++;
@@ -615,6 +627,7 @@
     } else { shakeX = 0; shakeY = 0; }
 
     if (gameState !== 'playing') return;
+    if (paused) return;
 
     // Very gentle speed ramp
     speed = Math.min(MAX_SPEED, BASE_SPEED + score * SPEED_INCREASE);
@@ -697,7 +710,7 @@
     drawTitle();
 
     if (gameState === 'ready') { drawBenji(); drawReady(); }
-    else if (gameState === 'playing') { obstacles.forEach(drawObstacle); drawBenji(); drawPopups(); drawScore(); }
+    else if (gameState === 'playing') { obstacles.forEach(drawObstacle); drawBenji(); drawPopups(); drawScore(); if (paused) drawPaused(); }
     else if (gameState === 'gameover') { obstacles.forEach(drawObstacle); drawParticles(); drawScore(); drawGameOver(); }
 
     ctx.restore();
@@ -712,7 +725,7 @@
     for (let i = 0; i < 8; i++) {
       mountains.push({ x: i * 130 + Math.random() * 40, h: 40 + Math.random() * 50, w: 80 + Math.random() * 60 });
     }
-    lastMilestone = 0; scoreFlash = 0; shakeTimer = 0;
+    lastMilestone = 0; scoreFlash = 0; shakeTimer = 0; paused = false;
     benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; benji.ducking = false; benji.runFrame = 0;
   }
 
@@ -723,8 +736,9 @@
   function handleDuck(a) { if (gameState === 'playing' && benji.grounded) { benji.ducking = a; if (a) playDuck(); } }
 
   document.addEventListener('keydown', e => {
-    if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); handleAction(); }
-    if (e.code === 'ArrowDown') { e.preventDefault(); handleDuck(true); }
+    if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); if (!paused) handleAction(); }
+    if (e.code === 'ArrowDown') { e.preventDefault(); if (!paused) handleDuck(true); }
+    if ((e.code === 'KeyP' || e.code === 'Escape') && gameState === 'playing') { paused = !paused; }
   });
   document.addEventListener('keyup', e => { if (e.code === 'ArrowDown') handleDuck(false); });
 
