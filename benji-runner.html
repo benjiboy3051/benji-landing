@@ -311,6 +311,18 @@
     });
   }
 
+  function drawMoon() {
+    if (!nightMode) return;
+    const mx = W - 80, my = 55;
+    ctx.fillStyle = '#e8e4c8';
+    ctx.beginPath(); ctx.arc(mx, my, 16, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#1a1a2e';
+    ctx.beginPath(); ctx.arc(mx + 8, my - 3, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#d4d0b8';
+    ctx.beginPath(); ctx.arc(mx - 4, my + 4, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(mx + 3, my - 5, 2, 0, Math.PI * 2); ctx.fill();
+  }
+
   function drawStars() {
     if (!nightMode) return;
     stars.forEach(s => {
@@ -587,6 +599,7 @@
     ctx.save(); ctx.translate(shakeX, shakeY);
     ctx.fillStyle = nightMode ? '#1a1a2e' : '#f7f7f7'; ctx.fillRect(0, 0, W, H);
     drawStars();
+    drawMoon();
     drawSun();
     drawMountains();
     clouds.forEach(c => drawCloud(c.x, c.y, c.size));
