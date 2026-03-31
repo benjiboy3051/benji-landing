@@ -273,15 +273,21 @@
 
   function drawBird(x, y, frame) {
     const col = nightMode ? '#ddd' : '#535353';
+    const lt = nightMode ? '#eee' : '#666';
     ctx.fillStyle = col;
     const s = 3;
     for (let i = 0; i < 5; i++) px(x + i*s, y, s);
     for (let i = 0; i < 4; i++) px(x + i*s, y + s, s);
+    ctx.fillStyle = lt; px(x + 3*s, y, s);
     ctx.fillStyle = '#e8a020'; px(x + 5*s, y, s); px(x + 6*s, y, s);
     ctx.fillStyle = nightMode ? '#fff' : '#111'; px(x + s, y, s);
+    ctx.fillStyle = '#e74c3c'; px(x + 7*s, y, s);
     ctx.fillStyle = col;
     if (frame === 0) { px(x + 2*s, y - s, s); px(x + 3*s, y - 2*s, s); px(x + 4*s, y - s, s); }
     else { px(x + 2*s, y + 2*s, s); px(x + 3*s, y + 3*s, s); px(x + 4*s, y + 2*s, s); }
+    ctx.fillStyle = lt;
+    if (frame === 0) { px(x + 2*s, y - s, s); }
+    else { px(x + 2*s, y + 2*s, s); }
   }
 
   function drawCloud(x, y, size) {
