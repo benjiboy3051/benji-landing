@@ -892,6 +892,14 @@
   // Auto-focus canvas for keyboard
   canvas.focus();
 
+  // Auto-pause when tab loses focus
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden && gameState === 'playing' && !paused) paused = true;
+  });
+  window.addEventListener('blur', () => {
+    if (gameState === 'playing' && !paused) paused = true;
+  });
+
   loop();
 })();
 </script>
