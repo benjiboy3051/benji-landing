@@ -83,6 +83,20 @@
     osc.start(audioCtx.currentTime);
     osc.stop(audioCtx.currentTime + 0.25);
   }
+  function playDeath() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.35);
+    gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime);
+    osc.stop(audioCtx.currentTime + 0.4);
+  }
 
   // Init ground
   for (let i = 0; i < 30; i++) {
@@ -478,7 +492,7 @@
 
     for (const o of obstacles) {
       if (checkCollision(o)) {
-        gameState = 'gameover'; shakeTimer = 15;
+        gameState = 'gameover'; shakeTimer = 15; playDeath();
         if (score > highScore) { highScore = Math.floor(score); localStorage.setItem('benjiHighScore', highScore); }
         addParticles(benji.x + 20, benji.y - 20, 12, 30);
         break;
