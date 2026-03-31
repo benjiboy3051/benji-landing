@@ -791,6 +791,9 @@
 
     // Score popups
     popups = popups.filter(p => { p.y -= 1.2; p.life--; return p.life > 0; });
+
+    // Particles
+    updateParticles();
   }
 
   // ---- COLOR UTILS ----
@@ -823,7 +826,7 @@
 
     if (gameState === 'ready') { drawBenji(); drawReady(); }
     else if (gameState === 'countdown') { drawBenji(); drawCountdown(); }
-    else if (gameState === 'playing') { obstacles.forEach(drawObstacle); drawBenji(); drawPopups(); drawScore(); if (paused) drawPaused(); }
+    else if (gameState === 'playing') { obstacles.forEach(drawObstacle); drawBenji(); drawParticles(); drawPopups(); drawScore(); if (paused) drawPaused(); }
     else if (gameState === 'gameover') { obstacles.forEach(drawObstacle); drawParticles(); drawScore(); drawGameOver(); }
 
     ctx.restore();
