@@ -17,14 +17,11 @@
   const canvas = document.getElementById('c');
   const ctx = canvas.getContext('2d');
 
-  // Responsive sizing
   const W = 800, H = 300;
   let scale = 1;
 
   function resize() {
-    const maxW = window.innerWidth;
-    const maxH = window.innerHeight;
-    scale = Math.min(maxW / W, maxH / H, 2);
+    scale = Math.min(window.innerWidth / W, window.innerHeight / H, 2);
     canvas.width = W;
     canvas.height = H;
     canvas.style.width = Math.floor(W * scale) + 'px';
@@ -36,14 +33,16 @@
   const GROUND_Y = 220;
   const GRAVITY = 0.55;
   const JUMP_FORCE = -11;
-  const BASE_SPEED = 5;
-  const MAX_SPEED = 13;
-  const SPEED_INCREASE = 0.001;
+
+  // Difficulty: start slow, ramp gently
+  let speed = 3.5;
+  const BASE_SPEED = 3.5;
+  const MAX_SPEED = 12;
+  const SPEED_INCREASE = 0.0004;
 
   let nightMode = false;
   let score = 0;
   let highScore = parseInt(localStorage.getItem('benjiHighScore')) || 0;
-  let speed = BASE_SPEED;
   let gameState = 'ready';
   let frameCount = 0;
   let obstacles = [];
@@ -52,271 +51,186 @@
   let clouds = [];
   let stars = [];
   let shakeX = 0, shakeY = 0, shakeTimer = 0;
-  let scoreFlash = 0; // frames remaining for score flash
+  let scoreFlash = 0;
   let lastMilestone = 0;
 
-  // ---- SOUND (Web Audio API) ----
-  let audioCtx = null;
-  function initAudio() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  }
-  function playTone(freq, dur, type, vol) {
-    if (!audioCtx) return;
-    const osc = audioCtx.createOscillator();
-    const gain = audioCtx.createGain();
-    osc.type = type || 'square';
-    osc.frequency.value = freq;
-    gain.gain.setValueAtTime(vol || 0.08, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + dur);
-    osc.connect(gain).connect(audioCtx.destination);
-    osc.start();
-    osc.stop(audioCtx.currentTime + dur);
-  }
-  function sfxJump() { playTone(400, 0.12, 'square', 0.07); playTone(600, 0.08, 'square', 0.05); }
-  function sfxDuck() { playTone(180, 0.1, 'triangle', 0.05); }
-  function sfxDeath() { playTone(200, 0.3, 'sawtooth', 0.1); playTone(120, 0.4, 'sawtooth', 0.08); }
-  function sfxMilestone() { playTone(523, 0.1, 'square', 0.06); playTone(659, 0.1, 'square', 0.06); playTone(784, 0.15, 'square', 0.06); }
-
-  // ---- PARALLAX MOUNTAINS ----
-  const mountains = [];
-  for (let i = 0; i < 8; i++) {
-    mountains.push({ x: i * 140, h: 30 + Math.random() * 50, w: 80 + Math.random() * 80 });
-  }
-
-  // Init ground lines
+  // Init ground
   for (let i = 0; i < 30; i++) {
     groundLines.push({ x: Math.random() * W, w: 2 + Math.random() * 10 });
   }
-
   // Init clouds
   for (let i = 0; i < 5; i++) {
     clouds.push({ x: Math.random() * W, y: 20 + Math.random() * 50, size: 0.8 + Math.random() * 1.2 });
   }
-
-  // Init stars for night mode
+  // Init stars
   for (let i = 0; i < 40; i++) {
     stars.push({ x: Math.random() * W, y: Math.random() * (GROUND_Y - 30), size: 1 + Math.random() * 2, twinkle: Math.random() * Math.PI * 2 });
   }
 
-  // Benji state
   const benji = {
-    x: 80,
-    y: GROUND_Y,
-    w: 44,
-    h: 50,
-    vy: 0,
-    grounded: true,
-    ducking: false,
-    runFrame: 0,
-    runTimer: 0
+    x: 80, y: GROUND_Y, w: 44, h: 50,
+    vy: 0, grounded: true, ducking: false, runFrame: 0, runTimer: 0
   };
 
-  // ---- PIXEL ART HELPERS ----
-  function setPixel(x, y, size) {
-    ctx.fillRect(Math.floor(x), Math.floor(y), size, size);
-  }
+  // ---- PIXEL ART ----
+  function px(x, y, s) { ctx.fillRect(Math.floor(x), Math.floor(y), s, s); }
 
-  const COLORS = {
-    1: () => nightMode ? '#ddd' : '#535353',  // body dark
-    2: () => nightMode ? '#fff' : '#333',      // body main
-    3: () => '#f5a623',                         // accent/orange
-    4: () => nightMode ? '#ff6b6b' : '#e74c3c', // red
-    5: () => '#f39c12',                          // tail/warm
-    6: () => nightMode ? '#bbb' : '#666',       // outline/shadow
+  // Color values: 0=empty, 1=body, 2=body light, 3=eye pupil, 4=tongue/nose, 5=tail, 6=outline, 7=ear floppy
+  const PAL = {
+    1: () => nightMode ? '#c8c8c8' : '#535353',
+    2: () => nightMode ? '#e8e8e8' : '#444',
+    3: () => nightMode ? '#fff' : '#111',
+    4: () => nightMode ? '#ff8888' : '#e74c3c',
+    5: () => '#e8a020',
+    6: () => nightMode ? '#888' : '#333',
+    7: () => nightMode ? '#a0a0a0' : '#6b4226',
   };
 
-  function drawPixelArray(arr, ox, oy, ps) {
+  function drawSprite(arr, ox, oy, ps) {
     for (let r = 0; r < arr.length; r++) {
       for (let c = 0; c < arr[r].length; c++) {
         const v = arr[r][c];
         if (v) {
-          ctx.fillStyle = COLORS[v] ? COLORS[v]() : COLORS[1]();
-          setPixel(ox + c * ps, oy + r * ps, ps);
+          ctx.fillStyle = (PAL[v] || PAL[1])();
+          px(ox + c * ps, oy + r * ps, ps);
         }
       }
     }
   }
 
-  // ---- BENJI SPRITES ----
-  // Each sprite is a 2D array: 0=empty, 1=dark, 2=main, 3=eyes, 4=red, 5=tail/orange, 6=outline
-  const benjiRun1 = [
-    [0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,6,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,3,3,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,3,3,2,2,2,6,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,5],
-    [0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,6,6,6,5,5,5],
-    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,2,6,5,5,0],
-    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,6,2,0,0,6,2,2,6,0,0,6,2,0,0,0,0,0,0],
-    [0,0,0,6,0,0,0,0,6,0,0,0,0,0,6,0,0,0,0,0,0],
-    [0,0,6,2,0,0,0,0,0,0,0,0,0,0,6,2,0,0,0,0,0],
-    [0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0],
+  // ---- CUTE PUPPY SPRITES ----
+  // Floppy ears (7), big eyes (3), tongue (4), wagging tail (5)
+  const run1 = [
+    [0,0,7,7,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,7,7,7,7,0,0,6,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,7,7,0,0,6,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,3,2,3,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,6,2,2,4,2,2,2,2,6,0,0,0,0,0,0,0,5,0],
+    [0,0,0,0,0,0,0,6,2,4,2,2,2,2,2,6,0,0,0,0,5,5,5,5],
+    [0,0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,6,6,5,5,5,0,0,0],
+    [0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0],
+    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,6,2,0,0,6,2,2,6,0,0,6,2,0,0,0,0,0,0,0,0],
+    [0,0,0,0,6,0,0,0,0,6,0,0,0,0,0,6,0,0,0,0,0,0,0,0],
+    [0,0,0,6,2,0,0,0,0,0,0,0,0,0,0,0,6,2,0,0,0,0,0,0],
+    [0,0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0],
   ];
 
-  const benjiRun2 = [
-    [0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,6,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,3,3,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,3,3,2,2,2,6,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,5],
-    [0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,6,6,6,5,5,5],
-    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,2,6,5,5,0],
-    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,0,0,0,0,0,6,2,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0],
-    [0,0,0,6,2,0,0,0,0,0,0,0,6,2,0,0,0,0,0,0,0],
-    [0,0,0,6,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0],
+  const run2 = [
+    [0,0,7,7,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,7,7,7,7,0,0,6,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,7,7,0,0,6,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,3,2,3,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,6,2,2,4,2,2,2,2,6,0,0,0,0,0,0,0,5,0],
+    [0,0,0,0,0,0,0,6,2,4,2,2,2,2,2,6,0,0,0,0,5,5,5,5],
+    [0,0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,6,6,5,5,5,0,0,0],
+    [0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0],
+    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,0,0,0,0,6,2,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,6,2,0,0,0,0,0,0,0,6,2,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,6,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0],
   ];
 
-  const benjiDuck = [
-    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,5],
-    [0,0,0,0,0,0,0,0,0,6,2,2,2,6,0,0,0,0,0,0,0,5,5,5,5],
-    [0,0,0,0,0,0,0,0,6,2,3,3,2,2,6,0,0,0,0,5,5,5,0,0,0],
-    [0,0,0,0,0,0,0,0,6,2,3,3,2,2,2,6,6,6,5,5,0,0,0,0,0],
-    [0,0,0,0,0,0,0,0,6,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,6,6,6,6,6,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0],
-    [0,0,6,2,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0],
-    [0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,6,2,0,0,6,2,2,2,6,0,0,6,2,0,0,0,0,0,0,0,0,0,0],
-    [0,0,6,0,0,0,0,6,2,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0],
-    [0,6,2,0,0,0,0,0,0,0,0,0,0,0,6,2,0,0,0,0,0,0,0,0,0],
+  const duckSprite = [
+    [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,7,7,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,5],
+    [0,0,0,0,0,0,0,0,7,7,7,7,6,2,2,2,6,0,0,0,0,0,5,5,5,5,5],
+    [0,0,0,0,0,0,0,0,0,7,7,6,2,3,2,2,2,6,0,0,5,5,5,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,6,2,2,2,2,2,2,2,6,5,5,0,0,0,0,0,0],
+    [0,0,0,0,0,0,0,0,0,0,6,2,2,4,2,2,2,2,6,0,0,0,0,0,0,0,0],
+    [0,0,0,0,6,6,6,6,6,6,2,2,4,2,2,2,2,6,0,0,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,6,2,0,0,6,2,2,2,6,0,0,6,2,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,6,0,0,0,0,6,2,0,0,0,0,0,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,6,2,0,0,0,0,0,0,0,0,0,0,0,0,6,2,0,0,0,0,0,0,0,0,0],
   ];
 
-  const benjiJump = [
-    [0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,6,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,3,3,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,3,3,2,2,2,6,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,5],
-    [0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,6,6,6,5,5,5],
-    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,2,6,5,5,0],
-    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,6,0,0,0,6,2,2,6,0,0,0,6,0,0,0,0,0,0],
-    [0,0,6,2,0,0,0,0,6,0,0,0,0,0,6,2,0,0,0,0,0],
-    [0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0],
-    [0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0],
+  const jumpSprite = [
+    [0,0,7,7,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,7,7,7,7,0,0,6,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,7,7,0,0,6,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,3,2,3,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,6,2,2,4,2,2,2,2,6,0,0,0,0,0,0,0,5,0],
+    [0,0,0,0,0,0,0,6,2,4,2,2,2,2,2,6,0,0,0,0,5,5,5,5],
+    [0,0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,6,6,5,5,5,0,0,0],
+    [0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0],
+    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0],
+    [0,0,0,6,0,0,0,6,2,2,6,0,0,0,0,6,0,0,0,0,0,0,0,0],
+    [0,0,6,2,0,0,0,0,6,0,0,0,0,0,0,6,2,0,0,0,0,0,0,0],
+    [0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0],
+    [0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0],
   ];
 
-  // Dead pose (X eyes)
-  const benjiDead = [
-    [0,0,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,6,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,4,0,2,2,6,0,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,0,4,2,2,2,6,0,0,0,0,0,0,0,0,0],
-    [0,0,0,0,6,2,4,0,2,2,2,2,6,0,0,0,0,0,0,0,0],
-    [0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,0,0,0,6,2,2,2,2,2,2,2,6,0,0,0,0,0,5],
-    [0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,6,6,6,5,5,5],
-    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,2,6,5,5,0],
-    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0],
-    [0,0,0,6,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
-    [0,0,0,6,0,0,0,6,2,2,6,0,0,0,6,0,0,0,0,0,0],
-    [0,0,6,2,0,0,0,0,6,0,0,0,0,0,6,2,0,0,0,0,0],
-    [0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0],
-    [0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0],
+  const deadSprite = [
+    [0,0,7,7,0,0,0,0,6,6,6,0,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,7,7,7,7,0,0,6,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,7,7,0,0,6,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,4,0,4,2,2,6,0,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,6,2,0,4,0,2,2,2,6,0,0,0,0,0,0,0,0,0,0],
+    [0,0,0,0,0,0,6,2,2,4,2,2,2,2,6,0,0,0,0,0,0,0,5,0],
+    [0,0,0,0,0,0,0,6,2,4,2,2,2,2,2,6,0,0,0,0,5,5,5,5],
+    [0,0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,6,6,5,5,5,0,0,0],
+    [0,0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0],
+    [0,0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0],
+    [0,0,0,6,2,2,2,2,2,2,2,2,2,2,6,0,0,0,0,0,0,0,0,0],
+    [0,0,0,6,0,0,0,6,2,2,6,0,0,0,0,6,0,0,0,0,0,0,0,0],
+    [0,0,6,2,0,0,0,0,6,0,0,0,0,0,0,6,2,0,0,0,0,0,0,0],
+    [0,0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0,0],
+    [0,6,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,6,0,0,0,0,0,0],
   ];
 
   // ---- CACTUS DRAWING ----
   function drawCactus(type, x) {
     const col = nightMode ? '#ddd' : '#535353';
     ctx.fillStyle = col;
-    const s = 3;
-    const g = GROUND_Y;
+    const s = 3, g = GROUND_Y;
 
     if (type === 'small') {
-      // Single small cactus
-      for (let i = 0; i < 8; i++) setPixel(x + 3*s, g - (i+1)*s, s);
-      setPixel(x + s, g - 5*s, s); setPixel(x + s, g - 6*s, s);
-      setPixel(x, g - 6*s, s);
-      setPixel(x + 5*s, g - 4*s, s); setPixel(x + 5*s, g - 5*s, s);
-      setPixel(x + 6*s, g - 5*s, s);
+      for (let i = 0; i < 7; i++) px(x + 3*s, g - (i+1)*s, s);
+      px(x + s, g - 4*s, s); px(x + s, g - 5*s, s); px(x, g - 5*s, s);
+      px(x + 5*s, g - 3*s, s); px(x + 5*s, g - 4*s, s); px(x + 6*s, g - 4*s, s);
     } else if (type === 'medium') {
-      for (let i = 0; i < 12; i++) setPixel(x + 3*s, g - (i+1)*s, s);
-      setPixel(x + s, g - 8*s, s); setPixel(x + s, g - 9*s, s);
-      setPixel(x + s, g - 10*s, s); setPixel(x, g - 10*s, s);
-      setPixel(x + 5*s, g - 6*s, s); setPixel(x + 5*s, g - 7*s, s);
-      setPixel(x + 6*s, g - 7*s, s); setPixel(x + 6*s, g - 8*s, s);
+      for (let i = 0; i < 11; i++) px(x + 3*s, g - (i+1)*s, s);
+      px(x + s, g - 7*s, s); px(x + s, g - 8*s, s); px(x + s, g - 9*s, s); px(x, g - 9*s, s);
+      px(x + 5*s, g - 5*s, s); px(x + 5*s, g - 6*s, s); px(x + 6*s, g - 6*s, s); px(x + 6*s, g - 7*s, s);
     } else if (type === 'large') {
-      for (let i = 0; i < 17; i++) setPixel(x + 4*s, g - (i+1)*s, s);
-      setPixel(x + 2*s, g - 10*s, s); setPixel(x + 2*s, g - 11*s, s);
-      setPixel(x + 2*s, g - 12*s, s); setPixel(x + s, g - 12*s, s);
-      setPixel(x, g - 12*s, s);
-      setPixel(x + 6*s, g - 6*s, s); setPixel(x + 6*s, g - 7*s, s);
-      setPixel(x + 6*s, g - 8*s, s); setPixel(x + 7*s, g - 8*s, s);
-      setPixel(x + 8*s, g - 8*s, s);
+      for (let i = 0; i < 15; i++) px(x + 4*s, g - (i+1)*s, s);
+      px(x + 2*s, g - 9*s, s); px(x + 2*s, g - 10*s, s); px(x + 2*s, g - 11*s, s);
+      px(x + s, g - 11*s, s); px(x, g - 11*s, s);
+      px(x + 6*s, g - 5*s, s); px(x + 6*s, g - 6*s, s); px(x + 6*s, g - 7*s, s);
+      px(x + 7*s, g - 7*s, s); px(x + 8*s, g - 7*s, s);
     } else if (type === 'group_small') {
-      // Two small cacti side by side
-      for (let i = 0; i < 6; i++) setPixel(x + 2*s, g - (i+1)*s, s);
-      for (let i = 0; i < 7; i++) setPixel(x + 6*s, g - (i+1)*s, s);
-      setPixel(x, g - 4*s, s); setPixel(x + 8*s, g - 5*s, s);
+      for (let i = 0; i < 5; i++) px(x + 2*s, g - (i+1)*s, s);
+      for (let i = 0; i < 6; i++) px(x + 6*s, g - (i+1)*s, s);
+      px(x, g - 3*s, s); px(x + 8*s, g - 4*s, s);
     }
   }
 
-  // ---- BIRD DRAWING ----
   function drawBird(x, y, frame) {
     const col = nightMode ? '#ddd' : '#535353';
     ctx.fillStyle = col;
     const s = 3;
-    // Body
-    for (let i = 0; i < 5; i++) setPixel(x + i*s, y, s);
-    for (let i = 0; i < 4; i++) setPixel(x + i*s, y + s, s);
-    // Beak
-    ctx.fillStyle = nightMode ? '#f5a623' : '#f5a623';
-    setPixel(x + 5*s, y, s);
-    setPixel(x + 6*s, y, s);
-    // Eye
-    ctx.fillStyle = nightMode ? '#fff' : '#333';
-    setPixel(x + s, y, s);
-    // Wings
+    for (let i = 0; i < 5; i++) px(x + i*s, y, s);
+    for (let i = 0; i < 4; i++) px(x + i*s, y + s, s);
+    ctx.fillStyle = '#e8a020'; px(x + 5*s, y, s); px(x + 6*s, y, s);
+    ctx.fillStyle = nightMode ? '#fff' : '#111'; px(x + s, y, s);
     ctx.fillStyle = col;
-    if (frame === 0) {
-      setPixel(x + 2*s, y - s, s);
-      setPixel(x + 3*s, y - 2*s, s);
-      setPixel(x + 4*s, y - s, s);
-    } else {
-      setPixel(x + 2*s, y + 2*s, s);
-      setPixel(x + 3*s, y + 3*s, s);
-      setPixel(x + 4*s, y + 2*s, s);
-    }
+    if (frame === 0) { px(x + 2*s, y - s, s); px(x + 3*s, y - 2*s, s); px(x + 4*s, y - s, s); }
+    else { px(x + 2*s, y + 2*s, s); px(x + 3*s, y + 3*s, s); px(x + 4*s, y + 2*s, s); }
   }
 
-  // ---- MOUNTAINS (parallax layer) ----
-  function drawMountains() {
-    ctx.fillStyle = nightMode ? '#2a2a4a' : '#d0cfc8';
-    mountains.forEach(m => {
-      ctx.beginPath();
-      ctx.moveTo(m.x, GROUND_Y + 2);
-      ctx.lineTo(m.x + m.w * 0.5, GROUND_Y + 2 - m.h);
-      ctx.lineTo(m.x + m.w, GROUND_Y + 2);
-      ctx.closePath();
-      ctx.fill();
-    });
-  }
-
-  // ---- CLOUDS ----
   function drawCloud(x, y, size) {
     ctx.fillStyle = nightMode ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.06)';
     const s = 4 * size;
@@ -325,519 +239,285 @@
     ctx.fillRect(x + s*0.5, y - s*0.5, s*3, s*0.7);
   }
 
-  // ---- STARS (night only) ----
   function drawStars() {
     if (!nightMode) return;
     stars.forEach(s => {
-      const alpha = 0.4 + 0.6 * Math.abs(Math.sin(s.twinkle + frameCount * 0.05));
-      ctx.globalAlpha = alpha;
+      ctx.globalAlpha = 0.4 + 0.6 * Math.abs(Math.sin(s.twinkle + frameCount * 0.05));
       ctx.fillStyle = '#fff';
       ctx.fillRect(s.x, s.y, s.size, s.size);
     });
     ctx.globalAlpha = 1;
   }
 
-  // ---- GROUND ----
   function drawGround() {
     ctx.fillStyle = nightMode ? '#535353' : '#535353';
     ctx.fillRect(0, GROUND_Y + 2, W, 2);
-    // Upper detail line
     ctx.fillStyle = nightMode ? '#444' : '#999';
     ctx.fillRect(0, GROUND_Y + 4, W, 1);
-
     ctx.fillStyle = nightMode ? '#444' : '#888';
-    groundLines.forEach(g => {
-      ctx.fillRect(g.x, GROUND_Y + 7, g.w, 1);
-    });
-
-    // Bones on the ground (subtle)
-    if (Math.random() < 0.002) {
-      groundLines.push({ x: W + Math.random() * 20, w: 2 + Math.random() * 8 });
-      if (groundLines.length > 40) groundLines.shift();
-    }
+    groundLines.forEach(g => ctx.fillRect(g.x, GROUND_Y + 7, g.w, 1));
   }
 
-  // ---- BENJI DRAWING ----
   function drawBenji() {
     let sprite, ps = 2.2;
     let drawY = benji.y - benji.h;
     let drawX = benji.x;
 
-    if (gameState === 'gameover') {
-      sprite = benjiDead;
-    } else if (!benji.grounded) {
-      sprite = benjiJump;
-    } else if (benji.ducking) {
-      sprite = benjiDuck;
-      drawY = benji.y - 26;
-      drawX = benji.x - 10;
-    } else {
-      sprite = benji.runFrame === 0 ? benjiRun1 : benjiRun2;
-    }
+    if (gameState === 'gameover') sprite = deadSprite;
+    else if (!benji.grounded) sprite = jumpSprite;
+    else if (benji.ducking) { sprite = duckSprite; drawY = benji.y - 26; drawX = benji.x - 12; }
+    else sprite = benji.runFrame === 0 ? run1 : run2;
 
-    drawPixelArray(sprite, drawX, drawY, ps);
+    drawSprite(sprite, drawX, drawY, ps);
   }
 
   // ---- OBSTACLE MANAGEMENT ----
   function spawnObstacle() {
-    // Grace period: no obstacles for first ~2 seconds
-    if (obstacles.length === 0 && score < 30) return;
+    // Long grace period: no obstacles for first ~4 seconds
+    if (obstacles.length === 0 && score < 60) return;
 
-    // Min gap starts large and shrinks as speed increases
-    const minGap = Math.max(100, 280 - speed * 15);
+    // Large starting gap that shrinks slowly
+    const minGap = Math.max(180, 400 - speed * 18);
     if (obstacles.length > 0) {
       const last = obstacles[obstacles.length - 1];
       if (W - last.x < minGap) return;
     }
 
     const r = Math.random();
-    // Birds only appear after score 500
-    const canBird = score > 500;
+    const canBird = score > 800;
 
-    // Early game: only small cacti (first 200 points)
-    if (score < 200) {
-      obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 27 });
+    // First 500 points: only small cacti, very spread out
+    if (score < 500) {
+      obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 24 });
       return;
     }
 
-    if (canBird && r < 0.12) {
-      const birdY = GROUND_Y - 25 - Math.random() * 50;
-      obstacles.push({ type: 'bird', x: W + 20, y: birdY, w: 24, h: 15, frame: 0, timer: 0 });
+    // 500-1000: small + medium
+    if (score < 1000) {
+      if (r < 0.65) obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 24 });
+      else obstacles.push({ type: 'medium', x: W + 20, y: GROUND_Y, w: 21, h: 36 });
+      return;
+    }
+
+    // 1000+: full variety
+    if (canBird && r < 0.1) {
+      obstacles.push({ type: 'bird', x: W + 20, y: GROUND_Y - 25 - Math.random() * 50, w: 24, h: 15, frame: 0, timer: 0 });
     } else {
-      const typeR = Math.random();
-      if (typeR < 0.3) {
-        obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 27 });
-      } else if (typeR < 0.55) {
-        obstacles.push({ type: 'medium', x: W + 20, y: GROUND_Y, w: 21, h: 39 });
-      } else if (typeR < 0.8) {
-        obstacles.push({ type: 'large', x: W + 20, y: GROUND_Y, w: 27, h: 54 });
-      } else {
-        obstacles.push({ type: 'group_small', x: W + 20, y: GROUND_Y, w: 30, h: 24 });
-      }
+      const t = Math.random();
+      if (t < 0.3) obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 24 });
+      else if (t < 0.55) obstacles.push({ type: 'medium', x: W + 20, y: GROUND_Y, w: 21, h: 36 });
+      else if (t < 0.8) obstacles.push({ type: 'large', x: W + 20, y: GROUND_Y, w: 27, h: 48 });
+      else obstacles.push({ type: 'group_small', x: W + 20, y: GROUND_Y, w: 30, h: 21 });
     }
   }
 
   function drawObstacle(o) {
-    switch (o.type) {
-      case 'small': case 'medium': case 'large': case 'group_small':
-        drawCactus(o.type, o.x); break;
-      case 'bird': drawBird(o.x, o.y, o.frame); break;
-    }
+    if (o.type === 'bird') drawBird(o.x, o.y, o.frame);
+    else drawCactus(o.type, o.x);
   }
 
-  // ---- COLLISION (tight hitbox) ----
   function checkCollision(o) {
-    // Benji hitbox (slightly forgiving)
-    const bx = benji.x + 10;
-    const bw = benji.ducking ? 28 : 26;
-    const by = benji.ducking ? benji.y - 24 : benji.y - benji.h + 6;
-    const bh = benji.ducking ? 20 : benji.h - 10;
-
+    const bx = benji.x + 12, bw = benji.ducking ? 26 : 24;
+    const by = benji.ducking ? benji.y - 22 : benji.y - benji.h + 6;
+    const bh = benji.ducking ? 18 : benji.h - 10;
     let ox, oy, ow, oh;
-    if (o.type === 'bird') {
-      ox = o.x + 3; oy = o.y; ow = o.w - 6; oh = o.h;
-    } else {
-      ox = o.x + 3;
-      oy = o.y - o.h;
-      ow = o.w - 6;
-      oh = o.h;
-    }
-
+    if (o.type === 'bird') { ox = o.x + 3; oy = o.y; ow = o.w - 6; oh = o.h; }
+    else { ox = o.x + 3; oy = o.y - o.h; ow = o.w - 6; oh = o.h; }
     return bx < ox + ow && bx + bw > ox && by < oy + oh && by + bh > oy;
   }
 
-  // ---- PARTICLES ----
   function addParticles(x, y, count, spread) {
     for (let i = 0; i < count; i++) {
       particles.push({
-        x: x + (Math.random() - 0.5) * spread,
-        y: y - Math.random() * 15,
-        vx: (Math.random() - 0.5) * 4 - 2,
-        vy: -Math.random() * 4 - 1,
-        life: 25 + Math.random() * 20,
-        size: 2 + Math.random() * 4
+        x: x + (Math.random() - 0.5) * spread, y: y - Math.random() * 15,
+        vx: (Math.random() - 0.5) * 4 - 2, vy: -Math.random() * 4 - 1,
+        life: 25 + Math.random() * 20, size: 2 + Math.random() * 4
       });
     }
   }
 
   function updateParticles() {
-    particles = particles.filter(p => {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.15;
-      p.life--;
-      return p.life > 0;
-    });
+    particles = particles.filter(p => { p.x += p.vx; p.y += p.vy; p.vy += 0.15; p.life--; return p.life > 0; });
   }
 
   function drawParticles() {
     ctx.fillStyle = nightMode ? '#999' : '#aaa';
-    particles.forEach(p => {
-      ctx.globalAlpha = Math.min(1, p.life / 30);
-      ctx.fillRect(p.x, p.y, p.size, p.size);
-    });
+    particles.forEach(p => { ctx.globalAlpha = Math.min(1, p.life / 30); ctx.fillRect(p.x, p.y, p.size, p.size); });
     ctx.globalAlpha = 1;
   }
 
-  // ---- SCORE ----
   function drawScore() {
-    const scoreStr = String(Math.floor(score)).padStart(5, '0');
-    const hiStr = String(Math.floor(highScore)).padStart(5, '0');
-
-    ctx.font = '14px monospace';
-    ctx.textAlign = 'right';
-
-    // Flash effect on milestones
-    if (scoreFlash > 0) {
-      scoreFlash--;
-      ctx.fillStyle = nightMode ? '#f5a623' : '#7C3AED';
-    } else {
-      ctx.fillStyle = nightMode ? '#fff' : '#535353';
-    }
-
-    ctx.fillText(scoreStr, W - 20, 25);
-
-    if (highScore > 0) {
-      ctx.fillStyle = nightMode ? '#aaa' : '#999';
-      ctx.fillText('HI ' + hiStr, W - 100, 25);
-    }
+    const s = String(Math.floor(score)).padStart(5, '0');
+    const h = String(Math.floor(highScore)).padStart(5, '0');
+    ctx.font = '14px monospace'; ctx.textAlign = 'right';
+    ctx.fillStyle = scoreFlash > 0 ? (nightMode ? '#f5a623' : '#7C3AED') : (nightMode ? '#fff' : '#535353');
+    if (scoreFlash > 0) scoreFlash--;
+    ctx.fillText(s, W - 20, 25);
+    if (highScore > 0) { ctx.fillStyle = nightMode ? '#aaa' : '#999'; ctx.fillText('HI ' + h, W - 100, 25); }
   }
 
-  // ---- TITLE ----
   function drawTitle() {
     ctx.fillStyle = nightMode ? '#fff' : '#535353';
-    ctx.font = 'bold 20px monospace';
-    ctx.textAlign = 'left';
+    ctx.font = 'bold 20px monospace'; ctx.textAlign = 'left';
     ctx.fillText('BENJI RUNNER', 20, 25);
-    // Small paw
-    ctx.font = '14px monospace';
-    ctx.fillText('🐾', 150, 25);
+    ctx.font = '14px monospace'; ctx.fillText('🐾', 152, 25);
   }
 
-  // ---- READY SCREEN ----
   function drawReady() {
     ctx.fillStyle = nightMode ? '#fff' : '#535353';
-    ctx.font = 'bold 28px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('BENJI RUNNER', W / 2, H / 2 - 60);
-
-    // Paw emoji
-    ctx.font = '40px serif';
-    ctx.fillText('🐾', W / 2, H / 2 - 20);
-
+    ctx.font = 'bold 28px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('BENJI RUNNER', W/2, H/2 - 60);
+    ctx.font = '40px serif'; ctx.fillText('🐾', W/2, H/2 - 15);
     ctx.font = '14px monospace';
-    ctx.fillText('Press SPACE or tap to start', W / 2, H / 2 + 20);
-
-    ctx.font = '11px monospace';
-    ctx.fillStyle = nightMode ? '#aaa' : '#999';
-    ctx.fillText('SPACE / ↑ Jump  •  ↓ Duck', W / 2, H / 2 + 45);
-
+    ctx.fillText('Press SPACE or tap to start', W/2, H/2 + 20);
+    ctx.font = '11px monospace'; ctx.fillStyle = nightMode ? '#aaa' : '#999';
+    ctx.fillText('SPACE / ↑ Jump  •  ↓ Duck', W/2, H/2 + 45);
     if (highScore > 0) {
-      ctx.fillStyle = nightMode ? '#f5a623' : '#7C3AED';
-      ctx.font = '13px monospace';
-      ctx.fillText('High Score: ' + highScore, W / 2, H / 2 + 70);
+      ctx.fillStyle = nightMode ? '#f5a623' : '#7C3AED'; ctx.font = '13px monospace';
+      ctx.fillText('High Score: ' + highScore, W/2, H/2 + 70);
     }
   }
 
-  // ---- GAME OVER ----
   function drawGameOver() {
-    // Semi-transparent overlay
     ctx.fillStyle = nightMode ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.5)';
     ctx.fillRect(0, 0, W, H);
-
     ctx.fillStyle = nightMode ? '#fff' : '#535353';
-    ctx.font = 'bold 22px monospace';
-    ctx.textAlign = 'center';
-    ctx.fillText('G A M E   O V E R', W / 2, H / 2 - 40);
-
-    // Score display
+    ctx.font = 'bold 22px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('G A M E   O V E R', W/2, H/2 - 40);
     ctx.font = '14px monospace';
-    ctx.fillText('Score: ' + Math.floor(score), W / 2, H / 2 - 10);
+    ctx.fillText('Score: ' + Math.floor(score), W/2, H/2 - 10);
     if (score >= highScore && score > 0) {
-      ctx.fillStyle = nightMode ? '#f5a623' : '#7C3AED';
-      ctx.font = 'bold 14px monospace';
-      ctx.fillText('★ NEW HIGH SCORE ★', W / 2, H / 2 + 10);
+      ctx.fillStyle = nightMode ? '#f5a623' : '#7C3AED'; ctx.font = 'bold 14px monospace';
+      ctx.fillText('★ NEW HIGH SCORE ★', W/2, H/2 + 10);
     } else {
-      ctx.fillStyle = nightMode ? '#aaa' : '#999';
-      ctx.fillText('Best: ' + highScore, W / 2, H / 2 + 10);
+      ctx.fillStyle = nightMode ? '#aaa' : '#999'; ctx.fillText('Best: ' + highScore, W/2, H/2 + 10);
     }
-
     // Restart icon
-    const cx = W / 2, cy = H / 2 + 40;
-    ctx.strokeStyle = nightMode ? '#fff' : '#535353';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(cx, cy, 12, 0.5, Math.PI * 1.8);
-    ctx.stroke();
+    const cx = W/2, cy = H/2 + 40;
+    ctx.strokeStyle = nightMode ? '#fff' : '#535353'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(cx, cy, 12, 0.5, Math.PI*1.8); ctx.stroke();
     ctx.fillStyle = nightMode ? '#fff' : '#535353';
-    ctx.beginPath();
-    ctx.moveTo(cx + 10, cy - 8);
-    ctx.lineTo(cx + 15, cy - 1);
-    ctx.lineTo(cx + 7, cy - 1);
-    ctx.closePath();
-    ctx.fill();
-
+    ctx.beginPath(); ctx.moveTo(cx+10, cy-8); ctx.lineTo(cx+15, cy-1); ctx.lineTo(cx+7, cy-1); ctx.closePath(); ctx.fill();
     ctx.font = '11px monospace';
-    ctx.fillText('Press SPACE or tap to restart', W / 2, H / 2 + 68);
+    ctx.fillText('Press SPACE or tap to restart', W/2, H/2 + 68);
   }
 
   // ---- MAIN LOOP ----
   function update() {
     frameCount++;
-
-    // Screen shake decay
     if (shakeTimer > 0) {
       shakeTimer--;
       shakeX = (Math.random() - 0.5) * shakeTimer * 0.8;
       shakeY = (Math.random() - 0.5) * shakeTimer * 0.5;
-    } else {
-      shakeX = 0;
-      shakeY = 0;
-    }
+    } else { shakeX = 0; shakeY = 0; }
 
     if (gameState !== 'playing') return;
 
-    // Speed
+    // Very gentle speed ramp
     speed = Math.min(MAX_SPEED, BASE_SPEED + score * SPEED_INCREASE);
-
-    // Score
     score += speed * 0.1;
 
-    // Milestone flash every 100 pts
-    const milestone = Math.floor(score / 100);
-    if (milestone > lastMilestone) {
-      lastMilestone = milestone;
-      scoreFlash = 12;
-      sfxMilestone();
-    }
+    // Milestone flash
+    const m = Math.floor(score / 100);
+    if (m > lastMilestone) { lastMilestone = m; scoreFlash = 12; }
 
-    // Day/night toggle every 700 pts
-    const prevCycle = Math.floor((score - speed * 0.1) / 700);
-    const currCycle = Math.floor(score / 700);
-    if (currCycle !== prevCycle) {
-      nightMode = !nightMode;
-    }
+    // Night toggle
+    const prev = Math.floor((score - speed * 0.1) / 700), curr = Math.floor(score / 700);
+    if (curr !== prev) nightMode = !nightMode;
 
-    // Benji physics
+    // Physics
     if (!benji.grounded) {
-      benji.vy += GRAVITY;
-      benji.y += benji.vy;
-      if (benji.y >= GROUND_Y) {
-        benji.y = GROUND_Y;
-        benji.vy = 0;
-        benji.grounded = true;
-      }
+      benji.vy += GRAVITY; benji.y += benji.vy;
+      if (benji.y >= GROUND_Y) { benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; }
     }
 
-    // Running animation
+    // Animate
     if (benji.grounded && !benji.ducking) {
       benji.runTimer++;
-      const animSpeed = Math.max(3, 7 - Math.floor(speed * 0.4));
-      if (benji.runTimer > animSpeed) {
-        benji.runTimer = 0;
-        benji.runFrame = 1 - benji.runFrame;
-      }
+      const animSpeed = Math.max(4, 8 - Math.floor(speed * 0.3));
+      if (benji.runTimer > animSpeed) { benji.runTimer = 0; benji.runFrame = 1 - benji.runFrame; }
     }
 
-    // Spawn obstacles
     spawnObstacle();
 
-    // Update obstacles
     obstacles.forEach(o => {
       o.x -= speed;
-      if (o.type === 'bird') {
-        o.timer++;
-        if (o.timer > 8) {
-          o.timer = 0;
-          o.frame = 1 - o.frame;
-        }
-      }
+      if (o.type === 'bird') { o.timer++; if (o.timer > 8) { o.timer = 0; o.frame = 1 - o.frame; } }
     });
     obstacles = obstacles.filter(o => o.x > -80);
 
-    // Check collisions
     for (const o of obstacles) {
       if (checkCollision(o)) {
-        gameState = 'gameover';
-        shakeTimer = 15;
-        sfxDeath();
-        if (score > highScore) {
-          highScore = Math.floor(score);
-          localStorage.setItem('benjiHighScore', highScore);
-        }
+        gameState = 'gameover'; shakeTimer = 15;
+        if (score > highScore) { highScore = Math.floor(score); localStorage.setItem('benjiHighScore', highScore); }
         addParticles(benji.x + 20, benji.y - 20, 12, 30);
         break;
       }
     }
 
-    // Ground lines
     groundLines.forEach(g => {
       g.x -= speed * 0.6;
-      if (g.x < -15) {
-        g.x = W + Math.random() * 30;
-        g.w = 2 + Math.random() * 10;
-      }
+      if (g.x < -15) { g.x = W + Math.random() * 30; g.w = 2 + Math.random() * 10; }
     });
-
-    // Mountains (slow parallax)
-    mountains.forEach(m => {
-      m.x -= speed * 0.2;
-      if (m.x + m.w < -10) {
-        m.x = W + 10 + Math.random() * 40;
-        m.h = 30 + Math.random() * 50;
-        m.w = 80 + Math.random() * 80;
-      }
-    });
-
-    // Clouds
     clouds.forEach(c => {
       c.x -= speed * 0.12;
-      if (c.x < -60) {
-        c.x = W + 60 + Math.random() * 100;
-        c.y = 15 + Math.random() * 50;
-        c.size = 0.8 + Math.random() * 1.2;
-      }
+      if (c.x < -60) { c.x = W + 60 + Math.random() * 100; c.y = 15 + Math.random() * 50; }
     });
   }
 
   function draw() {
-    ctx.save();
-    ctx.translate(shakeX, shakeY);
-
-    // Background
-    ctx.fillStyle = nightMode ? '#1a1a2e' : '#f7f7f7';
-    ctx.fillRect(0, 0, W, H);
-
-    // Stars (night mode)
+    ctx.save(); ctx.translate(shakeX, shakeY);
+    ctx.fillStyle = nightMode ? '#1a1a2e' : '#f7f7f7'; ctx.fillRect(0, 0, W, H);
     drawStars();
-
-    // Mountains (parallax)
-    drawMountains();
-
-    // Clouds
     clouds.forEach(c => drawCloud(c.x, c.y, c.size));
-
-    // Ground
     drawGround();
-
-    // Title
     drawTitle();
 
-    if (gameState === 'ready') {
-      drawBenji();
-      drawReady();
-    } else if (gameState === 'playing') {
-      obstacles.forEach(drawObstacle);
-      drawBenji();
-      drawScore();
-    } else if (gameState === 'gameover') {
-      obstacles.forEach(drawObstacle);
-      drawParticles();
-      drawScore();
-      drawGameOver();
-    }
+    if (gameState === 'ready') { drawBenji(); drawReady(); }
+    else if (gameState === 'playing') { obstacles.forEach(drawObstacle); drawBenji(); drawScore(); }
+    else if (gameState === 'gameover') { obstacles.forEach(drawObstacle); drawParticles(); drawScore(); drawGameOver(); }
 
     ctx.restore();
   }
 
-  function loop() {
-    update();
-    draw();
-    requestAnimationFrame(loop);
+  function loop() { update(); draw(); requestAnimationFrame(loop); }
+
+  function resetGame() {
+    gameState = 'playing'; score = 0; speed = BASE_SPEED;
+    obstacles = []; particles = []; nightMode = false;
+    lastMilestone = 0; scoreFlash = 0; shakeTimer = 0;
+    benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; benji.ducking = false; benji.runFrame = 0;
   }
 
-  // ---- INPUT ----
   function handleAction() {
-    if (gameState === 'ready' || gameState === 'gameover') {
-      initAudio();
-      gameState = 'playing';
-      score = 0;
-      speed = BASE_SPEED;
-      obstacles = [];
-      particles = [];
-      nightMode = false;
-      lastMilestone = 0;
-      scoreFlash = 0;
-      shakeTimer = 0;
-      benji.y = GROUND_Y;
-      benji.vy = 0;
-      benji.grounded = true;
-      benji.ducking = false;
-      benji.runFrame = 0;
-    } else if (gameState === 'playing') {
-      if (benji.grounded) {
-        benji.vy = JUMP_FORCE;
-        benji.grounded = false;
-        benji.ducking = false;
-        sfxJump();
-      }
-    }
+    if (gameState === 'ready' || gameState === 'gameover') resetGame();
+    else if (gameState === 'playing' && benji.grounded) { benji.vy = JUMP_FORCE; benji.grounded = false; benji.ducking = false; }
   }
+  function handleDuck(a) { if (gameState === 'playing' && benji.grounded) benji.ducking = a; }
 
-  function handleDuck(active) {
-    if (gameState === 'playing' && benji.grounded) {
-      benji.ducking = active;
-      if (active) sfxDuck();
-    }
-  }
-
-  // Keyboard
   document.addEventListener('keydown', e => {
-    if (e.code === 'Space' || e.code === 'ArrowUp') {
-      e.preventDefault();
-      handleAction();
-    }
-    if (e.code === 'ArrowDown') {
-      e.preventDefault();
-      handleDuck(true);
-    }
+    if (e.code === 'Space' || e.code === 'ArrowUp') { e.preventDefault(); handleAction(); }
+    if (e.code === 'ArrowDown') { e.preventDefault(); handleDuck(true); }
   });
+  document.addEventListener('keyup', e => { if (e.code === 'ArrowDown') handleDuck(false); });
 
-  document.addEventListener('keyup', e => {
-    if (e.code === 'ArrowDown') {
-      handleDuck(false);
-    }
-  });
-
-  // Mouse
   canvas.addEventListener('mousedown', e => {
     e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const y = (e.clientY - rect.top) / rect.height * H;
-    if (y > H * 0.6 && gameState === 'playing') {
-      handleDuck(true);
-    } else {
-      handleAction();
-    }
+    const y = (e.clientY - canvas.getBoundingClientRect().top) / (canvas.getBoundingClientRect().height) * H;
+    if (y > H * 0.6 && gameState === 'playing') handleDuck(true);
+    else handleAction();
   });
+  canvas.addEventListener('mouseup', () => handleDuck(false));
 
-  canvas.addEventListener('mouseup', () => {
-    handleDuck(false);
-  });
-
-  // Touch
   canvas.addEventListener('touchstart', e => {
     e.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const y = (e.touches[0].clientY - rect.top) / rect.height * H;
-    if (y > H * 0.6 && gameState === 'playing') {
-      handleDuck(true);
-    } else {
-      handleAction();
-    }
+    const y = (e.touches[0].clientY - canvas.getBoundingClientRect().top) / canvas.getBoundingClientRect().height * H;
+    if (y > H * 0.6 && gameState === 'playing') handleDuck(true);
+    else handleAction();
   }, { passive: false });
+  canvas.addEventListener('touchend', e => { e.preventDefault(); handleDuck(false); }, { passive: false });
+  window.addEventListener('keydown', e => { if (e.code === 'Space') e.preventDefault(); });
 
-  canvas.addEventListener('touchend', e => {
-    e.preventDefault();
-    handleDuck(false);
-  }, { passive: false });
-
-  // Prevent space scrolling
-  window.addEventListener('keydown', e => {
-    if (e.code === 'Space') e.preventDefault();
-  });
-
-  // ---- START ----
   loop();
 })();
 </script>
