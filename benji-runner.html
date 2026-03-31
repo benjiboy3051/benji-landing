@@ -56,8 +56,21 @@
 
   // Web Audio for milestone ding
   let audioCtx = null;
+  function ensureAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+  function playJump() {
+    ensureAudio();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'square';
+    osc.frequency.setValueAtTime(320, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(640, audioCtx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.12);
+  }
   function playDing() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    ensureAudio();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = 'sine';
@@ -508,7 +521,7 @@
 
   function handleAction() {
     if (gameState === 'ready' || gameState === 'gameover') resetGame();
-    else if (gameState === 'playing' && benji.grounded) { benji.vy = JUMP_FORCE; benji.grounded = false; benji.ducking = false; }
+    else if (gameState === 'playing' && benji.grounded) { benji.vy = JUMP_FORCE; benji.grounded = false; benji.ducking = false; playJump(); }
   }
   function handleDuck(a) { if (gameState === 'playing' && benji.grounded) benji.ducking = a; }
 
