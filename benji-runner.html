@@ -42,6 +42,7 @@
   const SPEED_INCREASE = 0.0004;
 
   let nightMode = false;
+  let nightBlend = 0; // 0=day, 1=night, smoothly interpolated
   let score = 0;
   let highScore = parseInt(localStorage.getItem('benjiHighScore')) || 0;
   let gameState = 'ready';
@@ -479,36 +480,36 @@
 
   // ---- OBSTACLE MANAGEMENT ----
   function spawnObstacle() {
-    // Long grace period: no obstacles for first ~4 seconds
-    if (obstacles.length === 0 && score < 60) return;
+    // Grace period: brief calm before first obstacle
+    if (obstacles.length === 0 && score < 25) return;
 
-    // Large starting gap that shrinks slowly
-    const minGap = Math.max(180, 400 - speed * 18);
+    // Gap shrinks as speed increases
+    const minGap = Math.max(140, 350 - speed * 16);
     if (obstacles.length > 0) {
       const last = obstacles[obstacles.length - 1];
       if (W - last.x < minGap) return;
     }
 
     const r = Math.random();
-    const canBird = score > 800;
+    const canBird = score > 500;
 
-    // First 500 points: only small cacti, very spread out
-    if (score < 500) {
+    // Early game: small cacti only
+    if (score < 200) {
       obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 24 });
       return;
     }
 
-    // 500-1000: small + medium
-    if (score < 1000) {
-      if (r < 0.65) obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 24 });
+    // 200-500: small + medium
+    if (score < 500) {
+      if (r < 0.6) obstacles.push({ type: 'small', x: W + 20, y: GROUND_Y, w: 21, h: 24 });
       else obstacles.push({ type: 'medium', x: W + 20, y: GROUND_Y, w: 21, h: 36 });
       return;
     }
 
-    // 1000+: full variety
-    if (canBird && r < 0.1) {
+    // 500+: full variety
+    if (canBird && r < 0.12) {
       obstacles.push({ type: 'bird', x: W + 20, y: GROUND_Y - 25 - Math.random() * 50, w: 24, h: 15, frame: 0, timer: 0 });
-    } else if (r < 0.2 && score > 500) {
+    } else if (r < 0.2) {
       obstacles.push({ type: 'tumbleweed', x: W + 20, y: GROUND_Y, w: 28, h: 24, rot: 0, vx: speed * 0.6 + 2 });
     } else {
       const t = Math.random();
@@ -719,6 +720,10 @@
     const prev = Math.floor((score - speed * 0.1) / 700), curr = Math.floor(score / 700);
     if (curr !== prev) nightMode = !nightMode;
 
+    // Smooth night blend
+    const targetBlend = nightMode ? 1 : 0;
+    nightBlend += (targetBlend - nightBlend) * 0.03;
+
     // Physics
     if (!benji.grounded) {
       benji.vy += GRAVITY; benji.y += benji.vy;
@@ -789,17 +794,19 @@
 
   function draw() {
     ctx.save(); ctx.translate(shakeX, shakeY);
-    // Sky gradient
-    const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
-    if (nightMode) {
-      skyGrad.addColorStop(0, '#0d0d1a');
-      skyGrad.addColorStop(0.6, '#1a1a2e');
-      skyGrad.addColorStop(1, '#252540');
-    } else {
-      skyGrad.addColorStop(0, '#c8ddf0');
-      skyGrad.addColorStop(0.5, '#e8eff7');
-      skyGrad.addColorStop(1, '#f7f7f7');
+    // Sky gradient (smooth night transition)
+    function lerpColor(a, b, t) {
+      const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+      const ar = ah >> 16, ag = (ah >> 8) & 0xff, ab = ah & 0xff;
+      const br = bh >> 16, bg = (bh >> 8) & 0xff, bb = bh & 0xff;
+      const rr = Math.round(ar + (br - ar) * t), rg = Math.round(ag + (bg - ag) * t), rb = Math.round(ab + (bb - ab) * t);
+      return '#' + ((rr << 16) | (rg << 8) | rb).toString(16).padStart(6, '0');
     }
+    const nb = nightBlend;
+    const skyGrad = ctx.createLinearGradient(0, 0, 0, GROUND_Y);
+    skyGrad.addColorStop(0, lerpColor('#c8ddf0', '#0d0d1a', nb));
+    skyGrad.addColorStop(0.6, lerpColor('#e8eff7', '#1a1a2e', nb));
+    skyGrad.addColorStop(1, lerpColor('#f7f7f7', '#252540', nb));
     ctx.fillStyle = skyGrad;
     ctx.fillRect(0, 0, W, H);
     drawStars();
@@ -824,7 +831,7 @@
   function resetGame() {
     gameState = 'countdown'; countdown = 100;
     score = 0; speed = BASE_SPEED;
-    obstacles = []; particles = []; nightMode = false; popups = [];
+    obstacles = []; particles = []; nightMode = false; nightBlend = 0; popups = [];
     mountains = [];
     for (let i = 0; i < 8; i++) {
       mountains.push({ x: i * 130 + Math.random() * 40, h: 40 + Math.random() * 50, w: 80 + Math.random() * 60 });
