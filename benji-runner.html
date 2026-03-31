@@ -557,7 +557,7 @@
     // Physics
     if (!benji.grounded) {
       benji.vy += GRAVITY; benji.y += benji.vy;
-      if (benji.y >= GROUND_Y) { benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; }
+      if (benji.y >= GROUND_Y) { benji.y = GROUND_Y; benji.vy = 0; benji.grounded = true; addParticles(benji.x + 15, benji.y, 5, 12); }
     }
 
     // Animate
