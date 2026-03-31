@@ -321,6 +321,23 @@
     ctx.globalAlpha = 1;
   }
 
+  function drawSun() {
+    if (nightMode) return;
+    const sx = W - 80, sy = 55;
+    ctx.fillStyle = '#f5a623';
+    ctx.beginPath(); ctx.arc(sx, sy, 18, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#f7c948';
+    ctx.beginPath(); ctx.arc(sx, sy, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = '#f5a623'; ctx.lineWidth = 2;
+    for (let i = 0; i < 8; i++) {
+      const a = (i / 8) * Math.PI * 2 + frameCount * 0.005;
+      ctx.beginPath();
+      ctx.moveTo(sx + Math.cos(a) * 22, sy + Math.sin(a) * 22);
+      ctx.lineTo(sx + Math.cos(a) * 28, sy + Math.sin(a) * 28);
+      ctx.stroke();
+    }
+  }
+
   function drawGround() {
     ctx.fillStyle = nightMode ? '#535353' : '#535353';
     ctx.fillRect(0, GROUND_Y + 2, W, 2);
@@ -570,6 +587,7 @@
     ctx.save(); ctx.translate(shakeX, shakeY);
     ctx.fillStyle = nightMode ? '#1a1a2e' : '#f7f7f7'; ctx.fillRect(0, 0, W, H);
     drawStars();
+    drawSun();
     drawMountains();
     clouds.forEach(c => drawCloud(c.x, c.y, c.size));
     drawGround();
