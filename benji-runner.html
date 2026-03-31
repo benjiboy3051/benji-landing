@@ -570,6 +570,12 @@
     if (gameState === 'playing') {
       ctx.font = '12px monospace';
       ctx.fillText(nightMode ? '🌙' : '☀️', 170, 25);
+      // Pause button (top-left, for mobile)
+      ctx.fillStyle = nightMode ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)';
+      ctx.fillRect(0, 0, 32, 32);
+      ctx.fillStyle = nightMode ? '#fff' : '#535353';
+      ctx.fillRect(8, 8, 5, 16);
+      ctx.fillRect(19, 8, 5, 16);
     }
   }
 
@@ -760,16 +766,22 @@
 
   canvas.addEventListener('mousedown', e => {
     e.preventDefault();
-    const y = (e.clientY - canvas.getBoundingClientRect().top) / (canvas.getBoundingClientRect().height) * H;
-    if (y > H * 0.6 && gameState === 'playing') handleDuck(true);
+    const rect = canvas.getBoundingClientRect();
+    const cx = (e.clientX - rect.left) / rect.width * W;
+    const cy = (e.clientY - rect.top) / rect.height * H;
+    if (gameState === 'playing' && cx < 35 && cy < 35) { paused = !paused; return; }
+    if (cy > H * 0.6 && gameState === 'playing') handleDuck(true);
     else handleAction();
   });
   canvas.addEventListener('mouseup', () => handleDuck(false));
 
   canvas.addEventListener('touchstart', e => {
     e.preventDefault();
-    const y = (e.touches[0].clientY - canvas.getBoundingClientRect().top) / canvas.getBoundingClientRect().height * H;
-    if (y > H * 0.6 && gameState === 'playing') handleDuck(true);
+    const rect = canvas.getBoundingClientRect();
+    const cx = (e.touches[0].clientX - rect.left) / rect.width * W;
+    const cy = (e.touches[0].clientY - rect.top) / rect.height * H;
+    if (gameState === 'playing' && cx < 35 && cy < 35) { paused = !paused; return; }
+    if (cy > H * 0.6 && gameState === 'playing') handleDuck(true);
     else handleAction();
   }, { passive: false });
   canvas.addEventListener('touchend', e => { e.preventDefault(); handleDuck(false); }, { passive: false });
