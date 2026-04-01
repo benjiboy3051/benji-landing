@@ -553,7 +553,7 @@
   }
 
   function drawParticles() {
-    ctx.fillStyle = nightMode ? '#999' : '#aaa';
+    ctx.fillStyle = lerpColor('#c4b89a', '#888888', nightBlend);
     particles.forEach(p => { ctx.globalAlpha = Math.min(1, p.life / 30); ctx.fillRect(p.x, p.y, p.size, p.size); });
     ctx.globalAlpha = 1;
   }
