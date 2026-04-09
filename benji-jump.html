@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Benji Jump 🐾</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🐾</text></svg>" type="image/svg+xml">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', monospace; }
+  canvas { display: block; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c" role="img" aria-label="Benji Jump - tap or space to jump" tabindex="0"></canvas>
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d');
+
+  const W = 500, H = 600;
+  let scale = 1;
+
+  function resize() {
+    scale = Math.min(window.innerWidth / W, window.innerHeight / H, 1.5);
+    canvas.width = W;
+    canvas.height = H;
+    canvas.style.width = Math.floor(W * scale) + 'px';
+    canvas.style.height = Math.floor(H * scale) + 'px';
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  const GRAVITY = 0.45;
+  const JUMP_FORCE = -13;
+  const SCROLL_SPEED = 3;
+
+  let score = 0;
+  let highScore = parseInt(localStorage.getItem('benjiJumpHighScore')) || 0;
+  let gameState = 'ready';
+  let frameCount = 0;
+  let platforms = [];
+  let particles = [];
+  let floatingTexts = [];
+  let screenShake = 0;
+  let dog = { x: 100, y: 300, vy: 0, w: 40, h: 40, onGround: false, spin: 0, faceRight: true };
+
+  function initPlatforms() {
+    platforms = [];
+    for (let i = 0; i < 8; i++) {
+      platforms.push({
+        x: Math.random() * (W - 100) + 20,
+        y: H - 80 - i * 70,
+        w: 80 + Math.random() * 60,
+        h: 18,
+        hasBone: Math.random() > 0.7,
+        boneCollected: false
+      });
+    }
+    platforms.push({ x: 50, y: H - 50, w: 150, h: 20, hasBone: false, boneCollected: false });
+  }
+
+  function resetGame() {
+    score = 0;
+    dog = { x: 100, y: 300, vy: 0, w: 40, h: 40, onGround: false, spin: 0, faceRight: true };
+    initPlatforms();
+    particles = [];
+    floatingTexts = [];
+    screenShake = 0;
+  }
+
+  function jump() {
+    if (dog.onGround) {
+      dog.vy = JUMP_FORCE;
+      dog.onGround = false;
+      for (let i = 0; i < 8; i++) {
+        particles.push({
+          x: dog.x + dog.w/2,
+          y: dog.y + dog.h,
+          vx: (Math.random() - 0.5) * 4,
+          vy: Math.random() * -3,
+          life: 30,
+          color: '#F59E0B'
+        });
+      }
+    }
+  }
+
+  function gameOver() {
+    gameState = 'over';
+    if (score > highScore) {
+      highScore = score;
+      localStorage.setItem('benjiJumpHighScore', highScore);
+    }
+    for (let i = 0; i < 20; i++) {
+      particles.push({
+        x: dog.x + dog.w/2,
+        y: dog.y + dog.h/2,
+        vx: (Math.random() - 0.5) * 10,
+        vy: (Math.random() - 0.5) * 10,
+        life: 40,
+        color: ['#F59E0B', '#EF4444', '#06B6D4'][Math.floor(Math.random()*3)]
+      });
+    }
+  }
+
+  function update() {
+    if (gameState !== 'playing') return;
+    frameCount++;
+
+    dog.vy += GRAVITY;
+    dog.y += dog.vy;
+    dog.onGround = false;
+
+    if (dog.y > H) {
+      gameOver();
+      return;
+    }
+
+    for (let p of platforms) {
+      if (dog.x + dog.w > p.x && dog.x < p.x + p.w &&
+          dog.y + dog.h > p.y && dog.y + dog.h < p.y + p.h + 15 &&
+          dog.vy >= 0) {
+        dog.y = p.y - dog.h;
+        dog.vy = 0;
+        dog.onGround = true;
+        if (!p.hasBone || p.boneCollected) break;
+        p.boneCollected = true;
+        score += 50;
+        floatingTexts.push({ x: p.x + p.w/2, y: p.y, text: '+50', life: 40, color: '#F59E0B' });
+      }
+    }
+
+    platforms.forEach(p => p.y += SCROLL_SPEED);
+    platforms = platforms.filter(p => p.y < H + 50);
+
+    while (platforms.length < 7) {
+      const lastY = Math.min(...platforms.map(p => p.y));
+      const newY = lastY - (60 + Math.random() * 40);
+      platforms.push({
+        x: Math.random() * (W - 100) + 20,
+        y: newY,
+        w: 70 + Math.random() * 70,
+        h: 18,
+        hasBone: Math.random() > 0.75,
+        boneCollected: false
+      });
+    }
+
+    score++;
+    if (score % 500 === 0) {
+      screenShake = 5;
+      floatingTexts.push({ x: W/2, y: H/2, text: 'SPEED UP!', life: 60, color: '#EF4444' });
+    }
+
+    particles = particles.filter(p => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.2;
+      p.life--;
+      return p.life > 0;
+    });
+
+    floatingTexts = floatingTexts.filter(t => {
+      t.y -= 1;
+      t.life--;
+      return t.life > 0;
+    });
+
+    if (screenShake > 0) screenShake *= 0.9;
+  }
+
+  function drawDog(x, y, w, h, faceRight) {
+    ctx.save();
+    ctx.translate(x + w/2, y + h/2);
+    if (!faceRight) ctx.scale(-1, 1);
+    ctx.rotate(dog.spin * Math.PI / 180);
+
+    ctx.fillStyle = '#D97706';
+    ctx.beginPath();
+    ctx.ellipse(0, 2, 18, 16, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#F59E0B';
+    ctx.beginPath();
+    ctx.ellipse(-12, -6, 8, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(12, -6, 8, 8, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#1F2937';
+    ctx.beginPath();
+    ctx.arc(-14, -8, 3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(10, -8, 3, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = 'white';
+    ctx.beginPath();
+    ctx.arc(-13, -9, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(11, -9, 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = '#78350F';
+    ctx.beginPath();
+    ctx.moveTo(-2, -5);
+    ctx.lineTo(2, -5);
+    ctx.lineTo(0, 0);
+    ctx.fill();
+
+    ctx.fillStyle = '#F59E0B';
+    ctx.beginPath();
+    ctx.ellipse(0, 8, 8, 5, 0, 0, Math.PI);
+    ctx.fill();
+
+    ctx.fillStyle = '#78350F';
+    for (let i = 0; i < 4; i++) {
+      ctx.beginPath();
+      ctx.arc(-6 + i * 4, 10, 1.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = '#D97706';
+    ctx.beginPath();
+    ctx.moveTo(14, 0);
+    ctx.quadraticCurveTo(22, -8, 26, -4);
+    ctx.quadraticCurveTo(24, 0, 18, 4);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(14, 2);
+    ctx.quadraticCurveTo(20, 10, 24, 8);
+    ctx.quadraticCurveTo(22, 4, 16, 6);
+    ctx.fill();
+
+    ctx.restore();
+  }
+
+  function drawBone(x, y) {
+    ctx.fillStyle = '#F9FAFB';
+    ctx.beginPath();
+    ctx.ellipse(x, y, 8, 5, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x-12, y-3, 5, 4, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x-12, y+3, 5, 4, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x+12, y-3, 5, 4, 0.3, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x+12, y+3, 5, 4, -0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function draw() {
+    ctx.save();
+    if (screenShake > 0.5) {
+      ctx.translate((Math.random() - 0.5) * screenShake, (Math.random() - 0.5) * screenShake);
+    }
+
+    const gradient = ctx.createLinearGradient(0, 0, 0, H);
+    gradient.addColorStop(0, '#1F2937');
+    gradient.addColorStop(1, '#374151');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    for (let i = 0; i < 30; i++) {
+      const x = (i * 73 + frameCount * 0.2) % W;
+      const y = (i * 41) % (H * 0.6);
+      ctx.beginPath();
+      ctx.arc(x, y, 1 + (i % 3), 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    for (let p of platforms) {
+      const pg = ctx.createLinearGradient(p.x, p.y, p.x, p.y + p.h);
+      pg.addColorStop(0, '#7C3AED');
+      pg.addColorStop(1, '#5B21B6');
+      ctx.fillStyle = pg;
+      ctx.beginPath();
+      ctx.roundRect(p.x, p.y, p.w, p.h, 6);
+      ctx.fill();
+
+      ctx.fillStyle = '#A78BFA';
+      ctx.fillRect(p.x + 4, p.y + 2, p.w - 8, 4);
+
+      if (p.hasBone && !p.boneCollected) {
+        drawBone(p.x + p.w/2, p.y - 12);
+      }
+    }
+
+    for (let pt of particles) {
+      ctx.globalAlpha = pt.life / 40;
+      ctx.fillStyle = pt.color;
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    drawDog(dog.x, dog.y, dog.w, dog.h, dog.faceRight);
+
+    ctx.globalAlpha = 0.8;
+    for (let ft of floatingTexts) {
+      ctx.fillStyle = ft.color;
+      ctx.font = 'bold 18px "Segoe UI", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText(ft.text, ft.x, ft.y);
+    }
+    ctx.globalAlpha = 1;
+
+    ctx.fillStyle = '#F59E0B';
+    ctx.font = 'bold 28px "Segoe UI", monospace';
+    ctx.textAlign = 'left';
+    ctx.fillText('Score: ' + score, 20, 40);
+
+    ctx.fillStyle = '#06B6D4';
+    ctx.font = '18px "Segoe UI", monospace';
+    ctx.fillText('Best: ' + highScore, 20, 65);
+
+    if (gameState === 'ready') {
+      ctx.fillStyle = 'rgba(0,0,0,0.7)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#F59E0B';
+      ctx.font = 'bold 42px "Segoe UI", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('🐾 BENJI JUMP 🐾', W/2, H/2 - 40);
+      ctx.fillStyle = '#D97706';
+      ctx.font = '22px "Segoe UI", monospace';
+      ctx.fillText('Press SPACE or TAP to start', W/2, H/2 + 20);
+      ctx.fillStyle = '#A78BFA';
+      ctx.font = '16px "Segoe UI", monospace';
+      ctx.fillText('Collect bones for bonus points!', W/2, H/2 + 55);
+    }
+
+    if (gameState === 'over') {
+      ctx.fillStyle = 'rgba(0,0,0,0.8)';
+      ctx.fillRect(0, 0, W, H);
+      ctx.fillStyle = '#EF4444';
+      ctx.font = 'bold 48px "Segoe UI", monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('GAME OVER', W/2, H/2 - 40);
+      ctx.fillStyle = '#F59E0B';
+      ctx.font = 'bold 28px "Segoe UI", monospace';
+      ctx.fillText('Score: ' + score, W/2, H/2 + 10);
+      ctx.fillStyle = '#06B6D4';
+      ctx.font = '20px "Segoe UI", monospace';
+      ctx.fillText('High Score: ' + highScore, W/2, H/2 + 45);
+      ctx.fillStyle = '#A78BFA';
+      ctx.font = '18px "Segoe UI", monospace';
+      ctx.fillText('Press SPACE or TAP to restart', W/2, H/2 + 85);
+    }
+
+    ctx.restore();
+  }
+
+  function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+  }
+
+  initPlatforms();
+
+  document.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (gameState === 'ready') {
+        gameState = 'playing';
+        resetGame();
+      } else if (gameState === 'playing') {
+        jump();
+      } else if (gameState === 'over') {
+        gameState = 'playing';
+        resetGame();
+      }
+    }
+  });
+
+  canvas.addEventListener('click', () => {
+    if (gameState === 'ready') {
+      gameState = 'playing';
+      resetGame();
+    } else if (gameState === 'playing') {
+      jump();
+    } else if (gameState === 'over') {
+      gameState = 'playing';
+      resetGame();
+    }
+  });
+
+  canvas.addEventListener('touchstart', e => {
+    e.preventDefault();
+    if (gameState === 'ready') {
+      gameState = 'playing';
+      resetGame();
+    } else if (gameState === 'playing') {
+      jump();
+    } else if (gameState === 'over') {
+      gameState = 'playing';
+      resetGame();
+    }
+  }, { passive: false });
+
+  loop();
+})();
+</script>
+</body>
+</html>
