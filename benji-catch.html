@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Catch 🐾</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1F2937 0%, #374151 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        h1 {
+            color: #F59E0B;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+        }
+        
+        #gameCanvas {
+            border: 4px solid #7C3AED;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(124, 58, 237, 0.5);
+            background: linear-gradient(180deg, #1F2937 0%, #111827 100%);
+        }
+        
+        .score {
+            color: #06B6D4;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .instructions {
+            color: #9CA3AF;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+        
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #7C3AED;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .back-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(124, 58, 237, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">← Back</a>
+    <h1>Benji Catch 🦴</h1>
+    <div class="score">Score: <span id="score">0</span> | High Score: <span id="highScore">0</span></div>
+    <canvas id="gameCanvas" width="600" height="400"></canvas>
+    <p class="instructions">← → or A/D to move | Catch treats, avoid the bad stuff!</p>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('highScore');
+        
+        let score = 0;
+        let highScore = localStorage.getItem('benjiCatchHighScore') || 0;
+        highScoreEl.textContent = highScore;
+        
+        let gameOver = false;
+        let gameStarted = false;
+        
+        const benji = {
+            x: 275,
+            y: 340,
+            width: 50,
+            height: 50,
+            speed: 7,
+            direction: 1
+        };
+        
+        const treats = [];
+        const bads = [];
+        let treatSpawnTimer = 0;
+        let badSpawnTimer = 0;
+        
+        const treatEmojis = ['🦴', '🎾', '🥎', '🎾'];
+        const badEmojis = ['🌵', '⚡'];
+        
+        const keys = {
+            left: false,
+            right: false
+        };
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            if (!gameStarted && !gameOver) {
+                gameStarted = true;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+        });
+        
+        canvas.addEventListener('click', () => {
+            if (!gameStarted && !gameOver) gameStarted = true;
+            if (gameOver) resetGame();
+        });
+        
+        function spawnTreat() {
+            const emoji = treatEmojis[Math.floor(Math.random() * treatEmojis.length)];
+            treats.push({
+                x: Math.random() * (canvas.width - 30),
+                y: -30,
+                emoji: emoji,
+                speed: 2 + Math.random() * 2
+            });
+        }
+        
+        function spawnBad() {
+            const emoji = badEmojis[Math.floor(Math.random() * badEmojis.length)];
+            bads.push({
+                x: Math.random() * (canvas.width - 30),
+                y: -30,
+                emoji: emoji,
+                speed: 2.5 + Math.random() * 2
+            });
+        }
+        
+        function update() {
+            if (!gameStarted || gameOver) return;
+            
+            if (keys.left && benji.x > 0) benji.x -= benji.speed;
+            if (keys.right && benji.x < canvas.width - benji.width) benji.x += benji.speed;
+            
+            treatSpawnTimer++;
+            if (treatSpawnTimer > 50) {
+                spawnTreat();
+                treatSpawnTimer = 0;
+            }
+            
+            badSpawnTimer++;
+            if (badSpawnTimer > 80) {
+                spawnBad();
+                badSpawnTimer = 0;
+            }
+            
+            for (let i = treats.length - 1; i >= 0; i--) {
+                treats[i].y += treats[i].speed;
+                
+                if (treats[i].y > canvas.height) {
+                    treats.splice(i, 1);
+                    continue;
+                }
+                
+                if (checkCollision(benji, treats[i])) {
+                    score += 10;
+                    scoreEl.textContent = score;
+                    treats.splice(i, 1);
+                }
+            }
+            
+            for (let i = bads.length - 1; i >= 0; i--) {
+                bads[i].y += bads[i].speed;
+                
+                if (bads[i].y > canvas.height) {
+                    bads.splice(i, 1);
+                    continue;
+                }
+                
+                if (checkCollision(benji, bads[i])) {
+                    gameOver = true;
+                    if (score > highScore) {
+                        highScore = score;
+                        localStorage.setItem('benjiCatchHighScore', highScore);
+                        highScoreEl.textContent = highScore;
+                    }
+                }
+            }
+        }
+        
+        function checkCollision(benji, item) {
+            const itemSize = 30;
+            return benji.x < item.x + itemSize &&
+                   benji.x + benji.width > item.x &&
+                   benji.y < item.y + itemSize &&
+                   benji.y + benji.height > item.y;
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#1F2937';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#374151';
+            ctx.fillRect(0, 370, canvas.width, 30);
+            
+            ctx.font = '40px serif';
+            ctx.fillText('🐕', benji.x + 5, benji.y + 40);
+            
+            ctx.font = '30px serif';
+            for (const treat of treats) {
+                ctx.fillText(treat.emoji, treat.x, treat.y + 25);
+            }
+            
+            for (const bad of bads) {
+                ctx.fillText(bad.emoji, bad.x, bad.y + 25);
+            }
+            
+            if (!gameStarted) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#F59E0B';
+                ctx.font = 'bold 30px Poppins';
+                ctx.textAlign = 'center';
+                ctx.fillText('Click to Start!', canvas.width / 2, canvas.height / 2);
+                ctx.textAlign = 'left';
+            }
+            
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#EF4444';
+                ctx.font = 'bold 40px Poppins';
+                ctx.textAlign = 'center';
+                ctx.fillText('Game Over!', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.fillStyle = '#F59E0B';
+                ctx.font = '20px Poppins';
+                ctx.fillText('Final Score: ' + score, canvas.width / 2, canvas.height / 2 + 20);
+                ctx.fillStyle = '#06B6D4';
+                ctx.fillText('Click to play again', canvas.width / 2, canvas.height / 2 + 60);
+                ctx.textAlign = 'left';
+            }
+        }
+        
+        function resetGame() {
+            score = 0;
+            scoreEl.textContent = score;
+            treats.length = 0;
+            bads.length = 0;
+            benji.x = 275;
+            gameOver = false;
+            gameStarted = true;
+            treatSpawnTimer = 0;
+            badSpawnTimer = 0;
+        }
+        
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        canvas.addEventListener('click', () => {
+            if (gameOver) resetGame();
+        });
+        
+        gameLoop();
+    </script>
+</body>
+</html>
