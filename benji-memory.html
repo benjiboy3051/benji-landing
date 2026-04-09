@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Memory 🐾</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: linear-gradient(135deg, #1F2937 0%, #374151 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Segoe UI', system-ui, sans-serif;
+            color: #F9FAFB;
+            padding: 1rem;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+        .subtitle {
+            color: #9CA3AF;
+            margin-bottom: 1rem;
+        }
+        #gameCanvas {
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+        }
+        .stats {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1.5rem;
+            font-size: 1.2rem;
+        }
+        .stat {
+            background: rgba(124, 58, 237, 0.3);
+            padding: 0.5rem 1.5rem;
+            border-radius: 50px;
+        }
+        .stat span {
+            color: #F59E0B;
+            font-weight: bold;
+        }
+        .message {
+            margin-top: 1rem;
+            font-size: 1.5rem;
+            height: 2rem;
+            color: #06B6D4;
+        }
+        .back-btn {
+            position: fixed;
+            top: 1.5rem;
+            left: 1.5rem;
+            background: rgba(124, 58, 237, 0.5);
+            color: #F9FAFB;
+            border: none;
+            padding: 0.6rem 1.2rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+        .back-btn:hover {
+            background: #7C3AED;
+            transform: scale(1.05);
+        }
+        @media (max-width: 500px) {
+            h1 { font-size: 1.5rem; }
+            #gameCanvas { max-width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">← Home</a>
+    <h1>🐕 Benji Memory 🐕</h1>
+    <p class="subtitle">Find all the matching doggo pairs!</p>
+    <canvas id="gameCanvas" width="400" height="400"></canvas>
+    <div class="stats">
+        <div class="stat">Moves: <span id="moves">0</span></div>
+        <div class="stat">Matches: <span id="matches">0</span>/8</div>
+    </div>
+    <div class="message" id="message"></div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const emojis = ['🐕', '🐶', '🐩', '🦮', '🐕‍🦺', '🐾', '🦴', '🐺'];
+        const cardSize = 80;
+        const gap = 10;
+        const offset = 20;
+        
+        let cards = [];
+        let flipped = [];
+        let matched = 0;
+        let moves = 0;
+        let canFlip = true;
+        
+        function shuffle(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
+        function initGame() {
+            const pairs = [...emojis, ...emojis];
+            shuffle(pairs);
+            cards = pairs.map((emoji, i) => ({
+                emoji,
+                x: offset + (i % 4) * (cardSize + gap),
+                y: offset + Math.floor(i / 4) * (cardSize + gap),
+                revealed: false,
+                matched: false
+            }));
+            flipped = [];
+            matched = 0;
+            moves = 0;
+            canFlip = true;
+            updateStats();
+            document.getElementById('message').textContent = '';
+            draw();
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#1F2937';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            cards.forEach(card => {
+                if (card.revealed || card.matched) {
+                    ctx.fillStyle = '#7C3AED';
+                    ctx.beginPath();
+                    roundRect(ctx, card.x, card.y, cardSize, cardSize, 12);
+                    ctx.fill();
+                    
+                    ctx.font = '36px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(card.emoji, card.x + cardSize/2, card.y + cardSize/2 + 2);
+                } else {
+                    ctx.fillStyle = '#374151';
+                    ctx.beginPath();
+                    roundRect(ctx, card.x, card.y, cardSize, cardSize, 12);
+                    ctx.fill();
+                    
+                    ctx.font = '28px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText('🐾', card.x + cardSize/2, card.y + cardSize/2 + 2);
+                }
+                
+                if (card.matched) {
+                    ctx.strokeStyle = '#06B6D4';
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    roundRect(ctx, card.x + 2, card.y + 2, cardSize - 4, cardSize - 4, 10);
+                    ctx.stroke();
+                }
+            });
+        }
+        
+        function roundRect(ctx, x, y, w, h, r) {
+            ctx.moveTo(x + r, y);
+            ctx.lineTo(x + w - r, y);
+            ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+            ctx.lineTo(x + w, y + h - r);
+            ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+            ctx.lineTo(x + r, y + h);
+            ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+            ctx.lineTo(x, y + r);
+            ctx.quadraticCurveTo(x, y, x + r, y);
+        }
+        
+        function handleClick(e) {
+            if (!canFlip) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+            
+            const clicked = cards.find(card => 
+                x >= card.x && x < card.x + cardSize &&
+                y >= card.y && y < card.y + cardSize &&
+                !card.revealed && !card.matched
+            );
+            
+            if (clicked) {
+                clicked.revealed = true;
+                flipped.push(clicked);
+                draw();
+                
+                if (flipped.length === 2) {
+                    moves++;
+                    updateStats();
+                    canFlip = false;
+                    
+                    if (flipped[0].emoji === flipped[1].emoji) {
+                        flipped[0].matched = true;
+                        flipped[1].matched = true;
+                        matched++;
+                        updateStats();
+                        flipped = [];
+                        canFlip = true;
+                        draw();
+                        
+                        if (matched === 8) {
+                            document.getElementById('message').textContent = '🎉 Good dog! You found them all! 🎉';
+                        }
+                    } else {
+                        setTimeout(() => {
+                            flipped[0].revealed = false;
+                            flipped[1].revealed = false;
+                            flipped = [];
+                            canFlip = true;
+                            draw();
+                        }, 800);
+                    }
+                }
+            }
+        }
+        
+        function updateStats() {
+            document.getElementById('moves').textContent = moves;
+            document.getElementById('matches').textContent = matched;
+        }
+        
+        canvas.addEventListener('click', handleClick);
+        
+        canvas.addEventListener('touchstart', (e) => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleClick({ clientX: touch.clientX, clientY: touch.clientY });
+        });
+        
+        initGame();
+    </script>
+</body>
+</html>
