@@ -187,6 +187,67 @@
             font-size: 0.5rem;
             color: #666;
         }
+
+        .filter-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .filter-btn {
+            padding: 0.7rem 1.2rem;
+            background: transparent;
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.6rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .filter-btn:hover,
+        .filter-btn.active {
+            background: #00ffff;
+            color: #0a0a0f;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        .search-input {
+            padding: 0.7rem 1rem;
+            background: rgba(26, 26, 46, 0.8);
+            border: 2px solid #ff00ff;
+            color: #fff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.6rem;
+            border-radius: 8px;
+            width: 200px;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+        }
+
+        .search-input::placeholder {
+            color: #666;
+        }
+
+        .game-cabinet.hidden {
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -196,64 +257,74 @@
     </header>
     
     <div class="arcade-container">
+        <div class="filter-controls">
+            <div class="filter-buttons">
+                <button class="filter-btn active" data-filter="all">ALL</button>
+                <button class="filter-btn" data-filter="desktop">DESKTOP</button>
+                <button class="filter-btn" data-filter="mobile">MOBILE</button>
+                <button class="filter-btn" data-filter="both">BOTH</button>
+            </div>
+            <input type="text" class="search-input" id="gameSearch" placeholder="SEARCH GAMES...">
+        </div>
+        
         <div class="games-grid">
-            <a href="benji-runner.html" class="game-cabinet">
+            <a href="benji-runner.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🏃</div>
                 <h2 class="cabinet-title">BENJI RUNNER</h2>
                 <p class="cabinet-desc">Endless runner - jump over obstacles!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-catch.html" class="game-cabinet">
+            <a href="benji-catch.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🦴</div>
                 <h2 class="cabinet-title">BENJI CATCH</h2>
                 <p class="cabinet-desc">Catch treats, avoid the bad stuff!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-memory.html" class="game-cabinet">
+            <a href="benji-memory.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🃏</div>
                 <h2 class="cabinet-title">BENJI MEMORY</h2>
                 <p class="cabinet-desc">Match the doggo pairs!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-jump.html" class="game-cabinet">
+            <a href="benji-jump.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🐕</div>
                 <h2 class="cabinet-title">BENJI JUMP</h2>
                 <p class="cabinet-desc">Jump up, collect bones!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-bounce.html" class="game-cabinet">
+            <a href="benji-bounce.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🎾</div>
                 <h2 class="cabinet-title">BENJI BOUNCE</h2>
                 <p class="cabinet-desc">Bounce ball, break bricks!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-trail.html" class="game-cabinet">
+            <a href="benji-trail.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🐕</div>
                 <h2 class="cabinet-title">BENJI TRAIL</h2>
                 <p class="cabinet-desc">Collect treats, grow the trail!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-hop.html" class="game-cabinet">
+            <a href="benji-hop.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🐸</div>
                 <h2 class="cabinet-title">BENJI HOP</h2>
                 <p class="cabinet-desc">Cross the roads safely!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-dodge.html" class="game-cabinet">
+            <a href="benji-dodge.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🎾</div>
                 <h2 class="cabinet-title">BENJI DODGE</h2>
                 <p class="cabinet-desc">Dodge the balls!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-squash.html" class="game-cabinet">
+            <a href="benji-squash.html" class="game-cabinet" data-platform="both">
                 <div class="cabinet-emoji">🔨</div>
                 <h2 class="cabinet-title">BENJI SQUASH</h2>
                 <p class="cabinet-desc">Whack the doggo!</p>
@@ -269,5 +340,46 @@
     <footer class="credits">
         <p>© 2026 BENJI'S ARCADE - ALL RIGHTS RESERVED</p>
     </footer>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const filterButtons = document.querySelectorAll('.filter-btn');
+            const searchInput = document.getElementById('gameSearch');
+            const gameCabinets = document.querySelectorAll('.game-cabinet');
+            
+            let currentFilter = 'all';
+            let searchTerm = '';
+            
+            function filterGames() {
+                gameCabinets.forEach(cabinet => {
+                    const platform = cabinet.getAttribute('data-platform');
+                    const title = cabinet.querySelector('.cabinet-title').textContent.toLowerCase();
+                    
+                    let showByPlatform = currentFilter === 'all' || platform === currentFilter || platform === 'both';
+                    let showBySearch = searchTerm === '' || title.includes(searchTerm);
+                    
+                    if (showByPlatform && showBySearch) {
+                        cabinet.classList.remove('hidden');
+                    } else {
+                        cabinet.classList.add('hidden');
+                    }
+                });
+            }
+            
+            filterButtons.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    filterButtons.forEach(b => b.classList.remove('active'));
+                    this.classList.add('active');
+                    currentFilter = this.getAttribute('data-filter');
+                    filterGames();
+                });
+            });
+            
+            searchInput.addEventListener('input', function() {
+                searchTerm = this.value.toLowerCase().trim();
+                filterGames();
+            });
+        });
+    </script>
 </body>
 </html>
