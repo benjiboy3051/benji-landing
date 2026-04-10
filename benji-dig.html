@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Dig 🦴</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(180deg, #3d2b1f 0%, #5c4033 50%, #2d1f14 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        h1 {
+            color: #F59E0B;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(245, 158, 11, 0.5);
+        }
+        
+        #gameCanvas {
+            border: 4px solid #92400E;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(245, 158, 11, 0.5);
+            background: linear-gradient(180deg, #4a3728 0%, #2d1f14 100%);
+        }
+        
+        .score {
+            color: #06B6D4;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .instructions {
+            color: #D4A574;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+        
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #92400E;
+            color: white;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+        }
+        
+        .back-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(146, 64, 14, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">← Back</a>
+    <h1>Benji Dig 🦴</h1>
+    <div class="score">Score: <span id="score">0</span> | Depth: <span id="depth">0</span>m | High Score: <span id="highScore">0</span></div>
+    <canvas id="gameCanvas" width="500" height="600"></canvas>
+    <p class="instructions">← → or A/D to move | DOWN or S to dig | Find bones, avoid rocks!</p>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const depthEl = document.getElementById('depth');
+        const highScoreEl = document.getElementById('highScore');
+        
+        let score = 0;
+        let depth = 0;
+        let highScore = localStorage.getItem('benjiDigHighScore') || 0;
+        highScoreEl.textContent = highScore;
+        
+        let gameOver = false;
+        let gameStarted = false;
+        
+        const GRID_SIZE = 50;
+        const ROWS = 12;
+        const COLS = 10;
+        
+        const benji = {
+            gridX: 4,
+            gridY: 0,
+            x: 4 * GRID_SIZE,
+            y: 0,
+            dirtLevel: 0
+        };
+        
+        let grid = [];
+        let revealed = [];
+        
+        const bones = [];
+        const rocks = [];
+        const gems = [];
+        
+        const keys = {
+            left: false,
+            right: false,
+            down: false
+        };
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = true;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = true;
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = true;
+            if (!gameStarted && !gameOver) {
+                gameStarted = true;
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') keys.left = false;
+            if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') keys.right = false;
+            if (e.key === 'ArrowDown' || e.key === 's' || e.key === 'S') keys.down = false;
+        });
+        
+        canvas.addEventListener('click', () => {
+            if (!gameStarted && !gameOver) gameStarted = true;
+            if (gameOver) resetGame();
+        });
+        
+        function initGrid() {
+            grid = [];
+            revealed = [];
+            for (let row = 0; row < ROWS; row++) {
+                grid[row] = [];
+                revealed[row] = [];
+                for (let col = 0; col < COLS; col++) {
+                    grid[row][col] = Math.random() < 0.15 ? 'rock' : (Math.random() < 0.1 ? 'gem' : (Math.random() < 0.2 ? 'bone' : 'dirt'));
+                    revealed[row][col] = false;
+                }
+            }
+            revealed[benji.gridY][benji.gridX] = true;
+            if (grid[benji.gridY][benji.gridX] === 'rock') grid[benji.gridY][benji.gridX] = 'dirt';
+        }
+        
+        function initGame() {
+            score = 0;
+            depth = 0;
+            scoreEl.textContent = score;
+            depthEl.textContent = depth;
+            benji.gridX = 4;
+            benji.gridY = 0;
+            benji.x = benji.gridX * GRID_SIZE;
+            benji.y = 0;
+            benji.dirtLevel = 0;
+            initGrid();
+            gameOver = false;
+            gameStarted = false;
+        }
+        
+        function update() {
+            if (!gameStarted || gameOver) return;
+            
+            const moveDelay = 12;
+            
+            if (keys.left && benji.gridX > 0) {
+                if (benji.dirtLevel === 0 || benji.dirtLevel % moveDelay === 0) {
+                    benji.gridX--;
+                    benji.x = benji.gridX * GRID_SIZE;
+                    if (revealed[benji.gridY][benji.gridX]) {
+                        checkCell();
+                    } else {
+                        revealed[benji.gridY][benji.gridX] = true;
+                        checkCell();
+                    }
+                }
+                benji.dirtLevel++;
+                if (benji.dirtLevel > moveDelay) benji.dirtLevel = 0;
+            } else if (keys.right && benji.gridX < COLS - 1) {
+                if (benji.dirtLevel === 0 || benji.dirtLevel % moveDelay === 0) {
+                    benji.gridX++;
+                    benji.x = benji.gridX * GRID_SIZE;
+                    if (revealed[benji.gridY][benji.gridX]) {
+                        checkCell();
+                    } else {
+                        revealed[benji.gridY][benji.gridX] = true;
+                        checkCell();
+                    }
+                }
+                benji.dirtLevel++;
+                if (benji.dirtLevel > moveDelay) benji.dirtLevel = 0;
+            } else {
+                benji.dirtLevel = 0;
+            }
+            
+            if (keys.down && benji.gridY < ROWS - 1) {
+                if (benji.dirtLevel === 0 || benji.dirtLevel % moveDelay === 0) {
+                    benji.gridY++;
+                    benji.y = benji.gridY * GRID_SIZE;
+                    depth = Math.max(depth, benji.gridY);
+                    depthEl.textContent = depth;
+                    if (revealed[benji.gridY][benji.gridX]) {
+                        checkCell();
+                    } else {
+                        revealed[benji.gridY][benji.gridX] = true;
+                        checkCell();
+                    }
+                }
+                benji.dirtLevel++;
+                if (benji.dirtLevel > moveDelay) benji.dirtLevel = 0;
+            }
+        }
+        
+        function checkCell() {
+            const cell = grid[benji.gridY][benji.gridX];
+            if (cell === 'rock') {
+                gameOver = true;
+                if (score > highScore) {
+                    highScore = score;
+                    localStorage.setItem('benjiDigHighScore', highScore);
+                    highScoreEl.textContent = highScore;
+                }
+            } else if (cell === 'bone') {
+                score += 25;
+                scoreEl.textContent = score;
+                grid[benji.gridY][benji.gridX] = 'dirt';
+            } else if (cell === 'gem') {
+                score += 50;
+                scoreEl.textContent = score;
+                grid[benji.gridY][benji.gridX] = 'dirt';
+            }
+        }
+        
+        function draw() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#5c4033');
+            gradient.addColorStop(0.3, '#4a3728');
+            gradient.addColorStop(1, '#2d1f14');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            for (let row = 0; row < ROWS; row++) {
+                for (let col = 0; col < COLS; col++) {
+                    const x = col * GRID_SIZE;
+                    const y = row * GRID_SIZE;
+                    
+                    if (revealed[row][col]) {
+                        ctx.fillStyle = '#3d2b1f';
+                        ctx.fillRect(x + 2, y + 2, GRID_SIZE - 4, GRID_SIZE - 4);
+                    } else {
+                        const dirtGradient = ctx.createLinearGradient(x, y, x, y + GRID_SIZE);
+                        dirtGradient.addColorStop(0, '#6b4423');
+                        dirtGradient.addColorStop(1, '#4a3020');
+                        ctx.fillStyle = dirtGradient;
+                        ctx.fillRect(x + 1, y + 1, GRID_SIZE - 2, GRID_SIZE - 2);
+                        
+                        ctx.fillStyle = '#8b5a2b';
+                        for (let i = 0; i < 3; i++) {
+                            const px = x + 10 + (i * 15) + Math.sin(row + col + i) * 3;
+                            const py = y + 15 + (i * 12);
+                            ctx.beginPath();
+                            ctx.arc(px, py, 3, 0, Math.PI * 2);
+                            ctx.fill();
+                        }
+                    }
+                    
+                    if (revealed[row][col] && grid[row][col] !== 'dirt') {
+                        ctx.font = '30px serif';
+                        if (grid[row][col] === 'bone') {
+                            ctx.fillText('🦴', x + 10, y + 35);
+                        } else if (grid[row][col] === 'rock') {
+                            ctx.fillText('🪨', x + 10, y + 35);
+                        } else if (grid[row][col] === 'gem') {
+                            ctx.fillText('💎', x + 10, y + 35);
+                        }
+                    }
+                }
+            }
+            
+            ctx.font = '40px serif';
+            ctx.fillText('🐕', benji.x + 5, benji.y + 40);
+            
+            if (!gameStarted) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#F59E0B';
+                ctx.font = 'bold 25px Poppins';
+                ctx.textAlign = 'center';
+                ctx.fillText('BENJI DIG', canvas.width / 2, canvas.height / 2 - 40);
+                ctx.fillStyle = '#D4A574';
+                ctx.font = '16px Poppins';
+                ctx.fillText('Click or press a key to start!', canvas.width / 2, canvas.height / 2);
+                ctx.textAlign = 'left';
+            }
+            
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                ctx.fillStyle = '#EF4444';
+                ctx.font = 'bold 35px Poppins';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER!', canvas.width / 2, canvas.height / 2 - 20);
+                ctx.fillStyle = '#F59E0B';
+                ctx.font = '20px Poppins';
+                ctx.fillText('Final Score: ' + score, canvas.width / 2, canvas.height / 2 + 20);
+                ctx.fillText('Depth: ' + depth + 'm', canvas.width / 2, canvas.height / 2 + 50);
+                ctx.fillStyle = '#06B6D4';
+                ctx.font = '16px Poppins';
+                ctx.fillText('Click to play again', canvas.width / 2, canvas.height / 2 + 90);
+                ctx.textAlign = 'left';
+            }
+        }
+        
+        function resetGame() {
+            initGame();
+        }
+        
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        initGame();
+        gameLoop();
+    </script>
+</body>
+</html>
