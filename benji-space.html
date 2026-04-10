@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Space 🛸</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #000;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Press Start 2P', monospace;
+            overflow: hidden;
+        }
+        
+        h1 {
+            color: #00ffff;
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px #00ffff;
+        }
+        
+        #gameCanvas {
+            border: 4px solid #ff00ff;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(255, 0, 255, 0.5);
+        }
+        
+        .score-display {
+            color: #ffff00;
+            font-size: 0.8rem;
+            margin-top: 1rem;
+            text-shadow: 0 0 10px #ffff00;
+        }
+        
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            padding: 10px 20px;
+            background: transparent;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.6rem;
+            text-decoration: none;
+            border-radius: 5px;
+            transition: all 0.3s;
+        }
+        
+        .back-btn:hover {
+            background: #00ff00;
+            color: #000;
+        }
+        
+        .start-screen, .game-over-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            color: #fff;
+            z-index: 10;
+        }
+        
+        .start-screen h2, .game-over-screen h2 {
+            color: #ff00ff;
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 15px #ff00ff;
+        }
+        
+        .start-screen p, .game-over-screen p {
+            font-size: 0.6rem;
+            margin-bottom: 2rem;
+            color: #00ffff;
+        }
+        
+        .start-btn {
+            padding: 15px 30px;
+            background: #ff00ff;
+            border: none;
+            color: #fff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.8rem;
+            cursor: pointer;
+            border-radius: 10px;
+            animation: pulse 1s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 10px #ff00ff; }
+            50% { box-shadow: 0 0 30px #ff00ff; }
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .controls-info {
+            position: fixed;
+            bottom: 20px;
+            color: #666;
+            font-size: 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <a href="games.html" class="back-btn">← GAMES</a>
+    
+    <h1>🐕 BENJI SPACE 🛸</h1>
+    <canvas id="gameCanvas" width="600" height="500"></canvas>
+    <div class="score-display">SCORE: <span id="score">0</span> | HIGH: <span id="highScore">0</span></div>
+    
+    <div class="start-screen" id="startScreen">
+        <h2>READY FOR TAKEOFF?</h2>
+        <p>Use ARROW KEYS or TOUCH to move<br>Avoid asteroids, collect stars!</p>
+        <button class="start-btn" onclick="startGame()">START GAME</button>
+    </div>
+    
+    <div class="game-over-screen hidden" id="gameOverScreen">
+        <h2>GAME OVER!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <button class="start-btn" onclick="startGame()">PLAY AGAIN</button>
+    </div>
+    
+    <div class="controls-info">← → or touch to move</div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('highScore');
+        const finalScoreEl = document.getElementById('finalScore');
+        const startScreen = document.getElementById('startScreen');
+        const gameOverScreen = document.getElementById('gameOverScreen');
+        
+        let gameRunning = false;
+        let score = 0;
+        let highScore = localStorage.getItem('benjiSpaceHigh') || 0;
+        highScoreEl.textContent = highScore;
+        
+        const player = {
+            x: 280,
+            y: 420,
+            width: 40,
+            height: 40,
+            speed: 5,
+            color: '#00ffff'
+        };
+        
+        let stars = [];
+        let asteroids = [];
+        let bullets = [];
+        let keys = {};
+        let touchX = null;
+        let lastShot = 0;
+        
+        document.addEventListener('keydown', e => {
+            keys[e.key] = true;
+            if (['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) {
+                e.preventDefault();
+            }
+        });
+        
+        document.addEventListener('keyup', e => keys[e.key] = false);
+        
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            touchX = touch.clientX - canvas.getBoundingClientRect().left;
+        });
+        
+        canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            touchX = touch.clientX - canvas.getBoundingClientRect().left;
+        });
+        
+        canvas.addEventListener('touchend', () => touchX = null);
+        
+        function startGame() {
+            gameRunning = true;
+            score = 0;
+            scoreEl.textContent = '0';
+            startScreen.classList.add('hidden');
+            gameOverScreen.classList.add('hidden');
+            
+            player.x = 280;
+            stars = [];
+            asteroids = [];
+            bullets = [];
+            
+            for (let i = 0; i < 5; i++) {
+                spawnStar();
+            }
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function spawnStar() {
+            stars.push({
+                x: Math.random() * (canvas.width - 30),
+                y: -20,
+                size: 15,
+                speed: 2 + Math.random() * 2,
+                rotation: 0
+            });
+        }
+        
+        function spawnAsteroid() {
+            const sizes = [20, 30, 40];
+            const size = sizes[Math.floor(Math.random() * sizes.length)];
+            asteroids.push({
+                x: Math.random() * (canvas.width - size),
+                y: -size,
+                width: size,
+                height: size,
+                speed: 2 + Math.random() * 3 + (score / 500),
+                rotation: 0,
+                rotationSpeed: (Math.random() - 0.5) * 0.1
+            });
+        }
+        
+        function shoot() {
+            const now = Date.now();
+            if (now - lastShot > 300) {
+                bullets.push({
+                    x: player.x + player.width / 2 - 3,
+                    y: player.y,
+                    width: 6,
+                    height: 15,
+                    speed: 8
+                });
+                lastShot = now;
+            }
+        }
+        
+        function update() {
+            if (!gameRunning) return;
+            
+            if (keys['ArrowLeft'] || keys['a'] || (touchX !== null && touchX < player.x + player.width / 2 - 30)) {
+                player.x -= player.speed;
+            }
+            if (keys['ArrowRight'] || keys['d'] || (touchX !== null && touchX > player.x + player.width / 2 + 30)) {
+                player.x += player.speed;
+            }
+            if (keys['ArrowUp'] || keys['w'] || keys[' ']) {
+                shoot();
+            }
+            
+            if (touchX !== null && Math.abs(touchX - (player.x + player.width / 2)) > 30) {
+                if (touchX < player.x + player.width / 2) {
+                    player.x -= player.speed;
+                } else {
+                    player.x += player.speed;
+                }
+            }
+            
+            player.x = Math.max(0, Math.min(canvas.width - player.width, player.x));
+            
+            if (Math.random() < 0.02) spawnStar();
+            if (Math.random() < 0.015 + (score / 2000)) spawnAsteroid();
+            
+            stars.forEach((star, i) => {
+                star.y += star.speed;
+                star.rotation += 0.05;
+                
+                if (star.y > canvas.height) {
+                    stars.splice(i, 1);
+                }
+                
+                if (checkCollision(player, {x: star.x, y: star.y, width: star.size, height: star.size})) {
+                    score += 50;
+                    scoreEl.textContent = score;
+                    stars.splice(i, 1);
+                }
+            });
+            
+            asteroids.forEach((asteroid, i) => {
+                asteroid.y += asteroid.speed;
+                asteroid.rotation += asteroid.rotationSpeed;
+                
+                if (asteroid.y > canvas.height) {
+                    asteroids.splice(i, 1);
+                }
+                
+                if (checkCollision(player, asteroid)) {
+                    gameOver();
+                }
+            });
+            
+            bullets.forEach((bullet, i) => {
+                bullet.y -= bullet.speed;
+                
+                if (bullet.y < 0) {
+                    bullets.splice(i, 1);
+                }
+                
+                asteroids.forEach((asteroid, j) => {
+                    if (checkCollision(bullet, asteroid)) {
+                        score += 100;
+                        scoreEl.textContent = score;
+                        bullets.splice(i, 1);
+                        asteroids.splice(j, 1);
+                    }
+                });
+            });
+        }
+        
+        function checkCollision(a, b) {
+            return a.x < b.x + b.width &&
+                   a.x + a.width > b.x &&
+                   a.y < b.y + b.height &&
+                   a.y + a.height > b.y;
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#0a0a20';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            for (let i = 0; i < 50; i++) {
+                ctx.fillStyle = `rgba(255,255,255,${Math.random() * 0.5 + 0.1})`;
+                ctx.beginPath();
+                ctx.arc(Math.random() * canvas.width, Math.random() * canvas.height, Math.random() * 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            stars.forEach(star => {
+                ctx.save();
+                ctx.translate(star.x + star.size/2, star.y + star.size/2);
+                ctx.rotate(star.rotation);
+                ctx.fillStyle = '#ffff00';
+                ctx.shadowColor = '#ffff00';
+                ctx.shadowBlur = 10;
+                
+                ctx.beginPath();
+                for (let j = 0; j < 5; j++) {
+                    const angle = (j * Math.PI * 2) / 5 - Math.PI / 2;
+                    const x = Math.cos(angle) * star.size / 2;
+                    const y = Math.sin(angle) * star.size / 2;
+                    if (j === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                }
+                ctx.closePath();
+                ctx.fill();
+                ctx.restore();
+            });
+            
+            asteroids.forEach(asteroid => {
+                ctx.save();
+                ctx.translate(asteroid.x + asteroid.width/2, asteroid.y + asteroid.height/2);
+                ctx.rotate(asteroid.rotation);
+                ctx.fillStyle = '#888';
+                ctx.strokeStyle = '#666';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.moveTo(-asteroid.width/2, 0);
+                ctx.lineTo(-asteroid.width/3, -asteroid.height/2);
+                ctx.lineTo(asteroid.width/3, -asteroid.height/2);
+                ctx.lineTo(asteroid.width/2, 0);
+                ctx.lineTo(asteroid.width/3, asteroid.height/2);
+                ctx.lineTo(-asteroid.width/3, asteroid.height/2);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
+                ctx.restore();
+            });
+            
+            ctx.fillStyle = player.color;
+            ctx.shadowColor = player.color;
+            ctx.shadowBlur = 15;
+            
+            ctx.beginPath();
+            ctx.moveTo(player.x + player.width/2, player.y);
+            ctx.lineTo(player.x + player.width, player.y + player.height);
+            ctx.lineTo(player.x + player.width/2, player.y + player.height - 10);
+            ctx.lineTo(player.x, player.y + player.height);
+            ctx.closePath();
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.shadowBlur = 5;
+            ctx.beginPath();
+            ctx.arc(player.x + player.width/2 - 8, player.y + 15, 5, 0, Math.PI * 2);
+            ctx.arc(player.x + player.width/2 + 8, player.y + 15, 5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(player.x + player.width/2 - 8, player.y + 15, 2, 0, Math.PI * 2);
+            ctx.arc(player.x + player.width/2 + 8, player.y + 15, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            bullets.forEach(bullet => {
+                ctx.fillStyle = '#ff00ff';
+                ctx.shadowColor = '#ff00ff';
+                ctx.shadowBlur = 10;
+                ctx.fillRect(bullet.x, bullet.y, bullet.width, bullet.height);
+            });
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('benjiSpaceHigh', highScore);
+                highScoreEl.textContent = highScore;
+            }
+            finalScoreEl.textContent = score;
+            gameOverScreen.classList.remove('hidden');
+        }
+        
+        function gameLoop() {
+            if (gameRunning) {
+                update();
+                draw();
+                requestAnimationFrame(gameLoop);
+            }
+        }
+        
+        draw();
+    </script>
+</body>
+</html>
