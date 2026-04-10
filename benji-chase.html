@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Chase 🐕</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            background: #1a1a2e;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Press Start 2P', monospace;
+            overflow: hidden;
+        }
+        #gameCanvas {
+            border: 4px solid #00ffff;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="600" height="500"></canvas>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const GAME_WIDTH = 600;
+        const GAME_HEIGHT = 500;
+        
+        let score = 0;
+        let highScore = localStorage.getItem('benjiChaseHighScore') || 0;
+        let level = 1;
+        let gameOver = false;
+        let gameStarted = false;
+        
+        const benji = {
+            x: GAME_WIDTH / 2,
+            y: GAME_HEIGHT / 2,
+            size: 30,
+            speed: 5,
+            vx: 0,
+            vy: 0
+        };
+        
+        const ball = {
+            x: 100,
+            y: 100,
+            size: 15,
+            vx: 3,
+            vy: 3
+        };
+        
+        const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false };
+        
+        document.addEventListener('keydown', e => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+            if (!gameStarted && !gameOver) { gameStarted = true; }
+            if (gameOver && e.key === ' ') resetGame();
+            e.preventDefault();
+        });
+        
+        document.addEventListener('keyup', e => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
+        
+        canvas.addEventListener('touchstart', e => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleTouch(touch.clientX, touch.clientY);
+        });
+        
+        canvas.addEventListener('touchmove', e => {
+            e.preventDefault();
+            const touch = e.touches[0];
+            handleTouch(touch.clientX, touch.clientY);
+        });
+        
+        function handleTouch(clientX, clientY) {
+            const rect = canvas.getBoundingClientRect();
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+            
+            const dx = x - benji.x;
+            const dy = y - benji.y;
+            
+            if (Math.abs(dx) > 20) benji.vx = dx > 0 ? benji.speed : -benji.speed;
+            else benji.vx = 0;
+            
+            if (Math.abs(dy) > 20) benji.vy = dy > 0 ? benji.speed : -benji.speed;
+            else benji.vy = 0;
+            
+            if (!gameStarted && !gameOver) gameStarted = true;
+            if (gameOver) resetGame();
+        }
+        
+        canvas.addEventListener('touchend', () => {
+            benji.vx = 0;
+            benji.vy = 0;
+        });
+        
+        function resetGame() {
+            score = 0;
+            level = 1;
+            gameOver = false;
+            gameStarted = false;
+            resetPositions();
+        }
+        
+        function resetPositions() {
+            benji.x = GAME_WIDTH / 2;
+            benji.y = GAME_HEIGHT / 2;
+            benji.vx = 0;
+            benji.vy = 0;
+            
+            ball.x = 50 + Math.random() * (GAME_WIDTH - 100);
+            ball.y = 50 + Math.random() * (GAME_HEIGHT - 100);
+            ball.vx = (2 + level * 0.5) * (Math.random() > 0.5 ? 1 : -1);
+            ball.vy = (2 + level * 0.5) * (Math.random() > 0.5 ? 1 : -1);
+        }
+        
+        function update() {
+            if (gameOver || !gameStarted) return;
+            
+            if (keys.w || keys.ArrowUp) benji.vy = -benji.speed;
+            else if (keys.s || keys.ArrowDown) benji.vy = benji.speed;
+            else benji.vy = 0;
+            
+            if (keys.a || keys.ArrowLeft) benji.vx = -benji.speed;
+            else if (keys.d || keys.ArrowRight) benji.vx = benji.speed;
+            else benji.vx = 0;
+            
+            benji.x += benji.vx;
+            benji.y += benji.vy;
+            
+            benji.x = Math.max(benji.size/2, Math.min(GAME_WIDTH - benji.size/2, benji.x));
+            benji.y = Math.max(benji.size/2, Math.min(GAME_HEIGHT - benji.size/2, benji.y));
+            
+            ball.x += ball.vx;
+            ball.y += ball.vy;
+            
+            if (ball.x <= ball.size || ball.x >= GAME_WIDTH - ball.size) {
+                ball.vx *= -1;
+                ball.x = ball.x < ball.size ? ball.size : GAME_WIDTH - ball.size;
+            }
+            if (ball.y <= ball.size || ball.y >= GAME_HEIGHT - ball.size) {
+                ball.vy *= -1;
+                ball.y = ball.y < ball.size ? ball.size : GAME_HEIGHT - ball.size;
+            }
+            
+            const dx = benji.x - ball.x;
+            const dy = benji.y - ball.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            if (dist < benji.size/2 + ball.size/2) {
+                score += 10 * level;
+                
+                if (score >= level * 100) {
+                    level++;
+                    ball.vx *= 1.2;
+                    ball.vy *= 1.2;
+                }
+                
+                ball.vx = (2 + level * 0.5) * (Math.random() > 0.5 ? 1 : -1);
+                ball.vy = (2 + level * 0.5) * (Math.random() > 0.5 ? 1 : -1);
+                
+                ball.x = 50 + Math.random() * (GAME_WIDTH - 100);
+                ball.y = 50 + Math.random() * (GAME_HEIGHT - 100);
+            }
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('benjiChaseHighScore', highScore);
+            }
+        }
+        
+        function drawBenji(x, y, size) {
+            ctx.fillStyle = '#D2691E';
+            ctx.beginPath();
+            ctx.ellipse(x, y + 5, size/2, size/2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#D2691E';
+            ctx.beginPath();
+            ctx.arc(x - size/3, y - size/2, size/4, 0, Math.PI * 2);
+            ctx.arc(x + size/3, y - size/2, size/4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(x - size/3, y - size/2, size/8, 0, Math.PI * 2);
+            ctx.arc(x + size/3, y - size/2, size/8, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#FFF';
+            ctx.beginPath();
+            ctx.arc(x - size/3 - size/16, y - size/2 - size/16, size/20, 0, Math.PI * 2);
+            ctx.arc(x + size/3 - size/16, y - size/2 - size/16, size/20, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#FF69B4';
+            ctx.beginPath();
+            ctx.arc(x, y, size/10, 0, Math.PI);
+            ctx.fill();
+            
+            ctx.fillStyle = '#8B4513';
+            ctx.beginPath();
+            ctx.ellipse(x - size/6, y + size/2.5, size/6, size/4, -0.3, 0, Math.PI * 2);
+            ctx.ellipse(x + size/6, y + size/2.5, size/6, size/4, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function drawBall(x, y, size) {
+            ctx.fillStyle = '#90EE90';
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#228B22';
+            ctx.beginPath();
+            ctx.arc(x + 3, y - 3, size/2, 0, Math.PI);
+            ctx.fill();
+            
+            ctx.fillStyle = 'rgba(255,255,255,0.6)';
+            ctx.beginPath();
+            ctx.arc(x - 4, y - 4, size/4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#1a1a2e';
+            ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+            
+            for (let i = 0; i < GAME_WIDTH; i += 40) {
+                ctx.strokeStyle = 'rgba(0,255,255,0.1)';
+                ctx.beginPath();
+                ctx.moveTo(i, 0);
+                ctx.lineTo(i, GAME_HEIGHT);
+                ctx.stroke();
+            }
+            for (let i = 0; i < GAME_HEIGHT; i += 40) {
+                ctx.strokeStyle = 'rgba(0,255,255,0.1)';
+                ctx.beginPath();
+                ctx.moveTo(0, i);
+                ctx.lineTo(GAME_WIDTH, i);
+                ctx.stroke();
+            }
+            
+            drawBall(ball.x, ball.y, ball.size);
+            drawBenji(benji.x, benji.y, benji.size);
+            
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '16px "Press Start 2P"';
+            ctx.fillText(`SCORE: ${score}`, 15, 30);
+            ctx.fillText(`LEVEL: ${level}`, 15, 55);
+            ctx.fillText(`BEST: ${highScore}`, GAME_WIDTH - 180, 30);
+            
+            if (!gameStarted) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                
+                ctx.fillStyle = '#ff00ff';
+                ctx.font = '24px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText('BENJI CHASE', GAME_WIDTH/2, GAME_HEIGHT/2 - 40);
+                
+                ctx.fillStyle = '#00ffff';
+                ctx.font = '12px "Press Start 2P"';
+                ctx.fillText('CHASE THE BALL!', GAME_WIDTH/2, GAME_HEIGHT/2 + 10);
+                ctx.fillText('USE ARROW KEYS OR WASD', GAME_WIDTH/2, GAME_HEIGHT/2 + 35);
+                ctx.fillText('OR TOUCH AND DRAG', GAME_WIDTH/2, GAME_HEIGHT/2 + 60);
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '14px "Press Start 2P"';
+                ctx.fillText('PRESS ANY KEY TO START', GAME_WIDTH/2, GAME_HEIGHT/2 + 110);
+                ctx.textAlign = 'left';
+            }
+            
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0,0,0,0.7)';
+                ctx.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+                
+                ctx.fillStyle = '#ff0000';
+                ctx.font = '32px "Press Start 2P"';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', GAME_WIDTH/2, GAME_HEIGHT/2 - 30);
+                
+                ctx.fillStyle = '#00ffff';
+                ctx.font = '16px "Press Start 2P"';
+                ctx.fillText(`SCORE: ${score}`, GAME_WIDTH/2, GAME_HEIGHT/2 + 20);
+                ctx.fillText(`LEVEL: ${level}`, GAME_WIDTH/2, GAME_HEIGHT/2 + 50);
+                
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px "Press Start 2P"';
+                ctx.fillText('PRESS SPACE TO RETRY', GAME_WIDTH/2, GAME_HEIGHT/2 + 100);
+                ctx.textAlign = 'left';
+            }
+        }
+        
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        gameLoop();
+    </script>
+</body>
+</html>
