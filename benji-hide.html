@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Hide 🐕</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a0a2e 0%, #0f0f1a 50%, #0a1a2e 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            overflow: hidden;
+        }
+        
+        .game-title {
+            font-size: 2.5rem;
+            color: #ff00ff;
+            text-shadow: 0 0 20px #ff00ff, 0 0 40px #ff00ff;
+            margin-bottom: 0.5rem;
+            animation: glow 2s ease-in-out infinite;
+        }
+        
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 20px #ff00ff, 0 0 40px #ff00ff; }
+            50% { text-shadow: 0 0 30px #ff00ff, 0 0 60px #ff00ff, 0 0 80px #ff00ff; }
+        }
+        
+        .game-subtitle {
+            font-size: 0.9rem;
+            color: #00ffff;
+            margin-bottom: 1rem;
+        }
+        
+        canvas {
+            border: 4px solid #00ffff;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5), inset 0 0 50px rgba(0, 0, 0, 0.5);
+            background: #0a0a15;
+        }
+        
+        .ui-panel {
+            display: flex;
+            gap: 2rem;
+            margin-top: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        .score-display {
+            background: rgba(0, 255, 255, 0.1);
+            border: 2px solid #00ffff;
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+        }
+        
+        .level-display {
+            background: rgba(255, 0, 255, 0.1);
+            border: 2px solid #ff00ff;
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+        }
+        
+        .lives-display {
+            background: rgba(0, 255, 0, 0.1);
+            border: 2px solid #00ff00;
+            padding: 0.5rem 1.5rem;
+            border-radius: 8px;
+        }
+        
+        .back-btn {
+            margin-top: 1.5rem;
+            padding: 0.8rem 2rem;
+            background: transparent;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            font-size: 0.8rem;
+            text-decoration: none;
+            border-radius: 8px;
+            transition: all 0.3s;
+        }
+        
+        .back-btn:hover {
+            background: #00ff00;
+            color: #0a0a0f;
+            box-shadow: 0 0 20px #00ff00;
+        }
+        
+        .game-over-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.85);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .game-over-overlay.show {
+            display: flex;
+        }
+        
+        .game-over-title {
+            font-size: 3rem;
+            color: #ff0000;
+            text-shadow: 0 0 30px #ff0000;
+            margin-bottom: 1rem;
+        }
+        
+        .final-score {
+            font-size: 1.5rem;
+            color: #00ffff;
+            margin-bottom: 2rem;
+        }
+        
+        .restart-btn {
+            padding: 1rem 2rem;
+            background: #ff00ff;
+            border: none;
+            color: #fff;
+            font-size: 1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .restart-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px #ff00ff;
+        }
+        
+        .instructions {
+            font-size: 0.8rem;
+            color: #aaa;
+            margin-top: 1rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <h1 class="game-title">🐕 BENJI HIDE 🐕</h1>
+    <p class="game-subtitle">Find the hidden bones before time runs out!</p>
+    
+    <canvas id="gameCanvas" width="600" height="450"></canvas>
+    
+    <div class="ui-panel">
+        <div class="score-display">SCORE: <span id="score">0</span></div>
+        <div class="level-display">LEVEL: <span id="level">1</span></div>
+        <div class="lives-display">LIVES: <span id="lives">3</span></div>
+    </div>
+    
+    <p class="instructions">Arrow keys to move • Find all hidden bones • Watch out for obstacles!</p>
+    <a href="games.html" class="back-btn">← BACK TO ARCADE</a>
+    
+    <div class="game-over-overlay" id="gameOverOverlay">
+        <h2 class="game-over-title">GAME OVER!</h2>
+        <p class="final-score">Final Score: <span id="finalScore">0</span></p>
+        <button class="restart-btn" onclick="restartGame()">PLAY AGAIN</button>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const CELL_SIZE = 30;
+        const COLS = canvas.width / CELL_SIZE;
+        const ROWS = canvas.height / CELL_SIZE;
+        
+        let score = 0;
+        let level = 1;
+        let lives = 3;
+        let foundBones = 0;
+        let gameTime = 0;
+        let maxTime = 30;
+        let gameRunning = false;
+        let obstacles = [];
+        let hiddenBones = [];
+        let player = { x: 1, y: 1, visible: true };
+        
+        function initGame() {
+            score = 0;
+            level = 1;
+            lives = 3;
+            maxTime = 30;
+            startLevel();
+        }
+        
+        function startLevel() {
+            foundBones = 0;
+            gameTime = 0;
+            player = { x: 1, y: 1, visible: true };
+            
+            obstacles = [];
+            hiddenBones = [];
+            
+            const numObstacles = 15 + level * 3;
+            for (let i = 0; i < numObstacles; i++) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * COLS);
+                    y = Math.floor(Math.random() * ROWS);
+                } while ((x < 3 && y < 3) || obstacles.some(o => o.x === x && o.y === y));
+                obstacles.push({ x, y });
+            }
+            
+            const numBones = 3 + Math.floor(level / 2);
+            for (let i = 0; i < numBones; i++) {
+                let x, y;
+                do {
+                    x = Math.floor(Math.random() * COLS);
+                    y = Math.floor(Math.random() * ROWS);
+                } while (
+                    obstacles.some(o => o.x === x && o.y === y) ||
+                    hiddenBones.some(b => b.x === x && b.y === y) ||
+                    (x === player.x && y === player.y)
+                );
+                hiddenBones.push({ x, y, found: false });
+            }
+            
+            gameRunning = true;
+            updateUI();
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#0a0a15';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.strokeStyle = 'rgba(0, 255, 255, 0.1)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x <= canvas.width; x += CELL_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y <= canvas.height; y += CELL_SIZE) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+            
+            obstacles.forEach(obs => {
+                const x = obs.x * CELL_SIZE;
+                const y = obs.y * CELL_SIZE;
+                
+                ctx.fillStyle = '#4a0040';
+                ctx.fillRect(x + 2, y + 2, CELL_SIZE - 4, CELL_SIZE - 4);
+                
+                ctx.strokeStyle = '#ff00ff';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x + 4, y + 4, CELL_SIZE - 8, CELL_SIZE - 8);
+            });
+            
+            hiddenBones.forEach(bone => {
+                if (bone.found) return;
+                
+                let revealChance = 0.02 + (foundBones / hiddenBones.length) * 0.08;
+                if (!bone.revealed && Math.random() < revealChance) {
+                    bone.revealed = true;
+                }
+                
+                if (bone.revealed) {
+                    const x = bone.x * CELL_SIZE + CELL_SIZE / 2;
+                    const y = bone.y * CELL_SIZE + CELL_SIZE / 2;
+                    
+                    ctx.fillStyle = '#ffaa00';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#ffdd44';
+                    ctx.beginPath();
+                    ctx.arc(x, y, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            });
+            
+            const px = player.x * CELL_SIZE + CELL_SIZE / 2;
+            const py = player.y * CELL_SIZE + CELL_SIZE / 2;
+            
+            if (player.visible) {
+                ctx.fillStyle = '#00ff88';
+                ctx.beginPath();
+                ctx.arc(px, py, 12, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(px - 4, py - 2, 3, 0, Math.PI * 2);
+                ctx.arc(px + 4, py - 2, 3, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.fillStyle = '#000000';
+                ctx.beginPath();
+                ctx.arc(px - 4, py - 2, 1.5, 0, Math.PI * 2);
+                ctx.arc(px + 4, py - 2, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '14px Courier New';
+            ctx.fillText(`Time: ${Math.ceil(maxTime - gameTime)}s`, 10, 20);
+            
+            ctx.fillStyle = '#ffaa00';
+            ctx.fillText(`Bones: ${foundBones}/${hiddenBones.length}`, canvas.width - 100, 20);
+        }
+        
+        function update(deltaTime) {
+            if (!gameRunning) return;
+            
+            gameTime += deltaTime;
+            
+            if (gameTime >= maxTime) {
+                lives--;
+                if (lives <= 0) {
+                    gameOver();
+                } else {
+                    startLevel();
+                }
+                return;
+            }
+            
+            const boneDist = Math.abs(player.x - player.x) + Math.abs(player.y - player.y);
+            hiddenBones.forEach(bone => {
+                if (!bone.found && player.x === bone.x && player.y === bone.y) {
+                    bone.found = true;
+                    foundBones++;
+                    score += 100;
+                    
+                    player.visible = true;
+                    setTimeout(() => player.visible = true, 500);
+                }
+            });
+            
+            if (foundBones >= hiddenBones.length) {
+                score += 500;
+                level++;
+                maxTime = Math.max(15, 30 - level * 2);
+                startLevel();
+            }
+            
+            const cellX = Math.floor(player.x / CELL_SIZE);
+            const cellY = Math.floor(player.y / CELL_SIZE);
+            obstacles.forEach(obs => {
+                if (obs.x === cellX && obs.y === cellY) {
+                    lives--;
+                    if (lives <= 0) {
+                        gameOver();
+                    } else {
+                        player.x = 1;
+                        player.y = 1;
+                    }
+                    return;
+                }
+            });
+            
+            updateUI();
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('level').textContent = level;
+            document.getElementById('lives').textContent = lives;
+        }
+        
+        function gameOver() {
+            gameRunning = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOverOverlay').classList.add('show');
+        }
+        
+        function restartGame() {
+            document.getElementById('gameOverOverlay').classList.remove('show');
+            initGame();
+        }
+        
+        function handleInput(dx, dy) {
+            if (!gameRunning) return;
+            
+            const newX = player.x + dx * CELL_SIZE;
+            const newY = player.y + dy * CELL_SIZE;
+            
+            if (newX >= 0 && newX < canvas.width && newY >= 0 && newY < canvas.height) {
+                const cellX = Math.floor(newX / CELL_SIZE);
+                const cellY = Math.floor(newY / CELL_SIZE);
+                
+                if (!obstacles.some(o => o.x === cellX && o.y === cellY)) {
+                    player.x = newX;
+                    player.y = newY;
+                    player.visible = true;
+                }
+            }
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            switch(e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    handleInput(0, -1);
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    handleInput(0, 1);
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    handleInput(-1, 0);
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    handleInput(1, 0);
+                    break;
+            }
+        });
+        
+        let lastTime = 0;
+        function gameLoop(timestamp) {
+            const deltaTime = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+            
+            update(deltaTime);
+            draw();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        initGame();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
