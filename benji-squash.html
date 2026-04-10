@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Squash 🐕 - Benji's Arcade</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #1a472a;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        .game-header {
+            text-align: center;
+            padding: 1rem;
+            background: linear-gradient(180deg, #2d5a3d 0%, transparent 100%);
+            width: 100%;
+        }
+        
+        .game-title {
+            font-size: 1.5rem;
+            color: #7cfc00;
+            text-shadow: 0 0 10px #7cfc00;
+        }
+        
+        .score-board {
+            display: flex;
+            justify-content: center;
+            gap: 2rem;
+            margin-top: 0.5rem;
+            font-size: 1.2rem;
+        }
+        
+        .score {
+            color: #ff6347;
+            text-shadow: 0 0 5px #ff6347;
+        }
+        
+        .high-score {
+            color: #ffd700;
+            text-shadow: 0 0 5px #ffd700;
+        }
+        
+        .game-container {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+            padding: 1rem;
+            max-width: 500px;
+        }
+        
+        .hole {
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(ellipse at center, #3d2817 0%, #1a0f0a 100%);
+            border-radius: 50%;
+            position: relative;
+            overflow: hidden;
+            cursor: pointer;
+            box-shadow: inset 0 10px 20px rgba(0,0,0,0.8);
+        }
+        
+        .hole::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 20px;
+            background: linear-gradient(to top, #3d2817, transparent);
+        }
+        
+        .benji {
+            position: absolute;
+            width: 70%;
+            height: 80%;
+            left: 15%;
+            bottom: -100%;
+            transition: bottom 0.1s ease;
+            cursor: pointer;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+        
+        .benji-face {
+            font-size: 3.5rem;
+            filter: drop-shadow(0 0 10px rgba(255,255,255,0.5));
+            transition: transform 0.05s ease;
+        }
+        
+        .benji.up {
+            bottom: 0;
+        }
+        
+        .benji.whacked {
+            transform: scale(0.8) translateY(10px);
+        }
+        
+        .benji.whacked .benji-face {
+            animation: bonk 0.2s ease;
+        }
+        
+        @keyframes bonk {
+            0%, 100% { transform: rotate(0deg); }
+            25% { transform: rotate(-15deg); }
+            75% { transform: rotate(15deg); }
+        }
+        
+        .start-btn {
+            margin-top: 1rem;
+            padding: 1rem 3rem;
+            font-size: 1.2rem;
+            font-family: 'Courier New', monospace;
+            background: #7cfc00;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            color: #1a472a;
+            font-weight: bold;
+            box-shadow: 0 5px 0 #4a8c1a, 0 0 20px #7cfc00;
+            transition: all 0.1s ease;
+        }
+        
+        .start-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 7px 0 #4a8c1a, 0 0 30px #7cfc00;
+        }
+        
+        .start-btn:active {
+            transform: translateY(2px);
+            box-shadow: 0 3px 0 #4a8c1a;
+        }
+        
+        .start-btn:disabled {
+            background: #666;
+            box-shadow: none;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin: 1rem;
+            padding: 0.8rem 1.5rem;
+            background: transparent;
+            border: 2px solid #7cfc00;
+            color: #7cfc00;
+            text-decoration: none;
+            font-size: 0.9rem;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+        
+        .back-link:hover {
+            background: #7cfc00;
+            color: #1a472a;
+        }
+        
+        .instructions {
+            color: #aaa;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+        }
+        
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.9);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 100;
+            display: none;
+        }
+        
+        .game-over.show {
+            display: flex;
+        }
+        
+        .game-over h2 {
+            font-size: 2rem;
+            color: #ff6347;
+            text-shadow: 0 0 20px #ff6347;
+            margin-bottom: 1rem;
+        }
+        
+        .game-over p {
+            font-size: 1.5rem;
+            color: #ffd700;
+            margin-bottom: 2rem;
+        }
+    </style>
+</head>
+<body>
+    <header class="game-header">
+        <h1 class="game-title">🐕 BENJI SQUASH 🐕</h1>
+        <div class="score-board">
+            <div class="score">SCORE: <span id="score">0</span></div>
+            <div class="high-score">BEST: <span id="highScore">0</span></div>
+        </div>
+    </header>
+    
+    <div class="game-container" id="gameContainer"></div>
+    
+    <button class="start-btn" id="startBtn">START GAME</button>
+    <p class="instructions">Click on Benji when he pops up!</p>
+    
+    <a href="games.html" class="back-link">← BACK TO ARCADE</a>
+    
+    <div class="game-over" id="gameOver">
+        <h2>GAME OVER!</h2>
+        <p>Score: <span id="finalScore">0</span></p>
+        <button class="start-btn" onclick="restartGame()">PLAY AGAIN</button>
+    </div>
+    
+    <script>
+        const gameContainer = document.getElementById('gameContainer');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('highScore');
+        const startBtn = document.getElementById('startBtn');
+        const gameOverEl = document.getElementById('gameOver');
+        const finalScoreEl = document.getElementById('finalScore');
+        
+        let score = 0;
+        let highScore = localStorage.getItem('benjiSquashHighScore') || 0;
+        let gameRunning = false;
+        let timeLeft = 30;
+        let lastHole = null;
+        
+        highScoreEl.textContent = highScore;
+        
+        const holes = [];
+        for (let i = 0; i < 9; i++) {
+            const hole = document.createElement('div');
+            hole.className = 'hole';
+            
+            const benji = document.createElement('div');
+            benji.className = 'benji';
+            benji.innerHTML = '<div class="benji-face">🐕</div>';
+            benji.addEventListener('click', () => whack(benji));
+            
+            hole.appendChild(benji);
+            gameContainer.appendChild(hole);
+            holes.push({ hole, benji });
+        }
+        
+        function randomTime(min, max) {
+            return Math.round(Math.random() * (max - min) + min);
+        }
+        
+        function randomHole() {
+            const idx = Math.floor(Math.random() * holes.length);
+            const selected = holes[idx];
+            if (selected === lastHole) {
+                return randomHole();
+            }
+            lastHole = selected;
+            return selected;
+        }
+        
+        function peep() {
+            if (!gameRunning) return;
+            
+            const time = randomTime(400, 900);
+            const { benji } = randomHole();
+            
+            benji.classList.add('up');
+            
+            setTimeout(() => {
+                benji.classList.remove('up');
+                if (gameRunning) {
+                    peep();
+                }
+            }, time);
+        }
+        
+        function whack(benji) {
+            if (!gameRunning || !benji.classList.contains('up')) return;
+            
+            benji.classList.remove('up');
+            benji.classList.add('whacked');
+            score += 10;
+            scoreEl.textContent = score;
+            
+            setTimeout(() => {
+                benji.classList.remove('whacked');
+            }, 200);
+        }
+        
+        function startGame() {
+            score = 0;
+            timeLeft = 30;
+            scoreEl.textContent = score;
+            gameRunning = true;
+            startBtn.disabled = true;
+            startBtn.textContent = 'PLAYING...';
+            
+            peep();
+            
+            const timer = setInterval(() => {
+                timeLeft--;
+                if (timeLeft <= 0) {
+                    clearInterval(timer);
+                    endGame();
+                }
+            }, 1000);
+        }
+        
+        function endGame() {
+            gameRunning = false;
+            startBtn.disabled = false;
+            startBtn.textContent = 'START GAME';
+            
+            holes.forEach(({ benji }) => {
+                benji.classList.remove('up');
+            });
+            
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('benjiSquashHighScore', highScore);
+                highScoreEl.textContent = highScore;
+            }
+            
+            finalScoreEl.textContent = score;
+            gameOverEl.classList.add('show');
+        }
+        
+        function restartGame() {
+            gameOverEl.classList.remove('show');
+            startGame();
+        }
+        
+        startBtn.addEventListener('click', startGame);
+    </script>
+</body>
+</html>
