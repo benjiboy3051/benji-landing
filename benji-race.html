@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Race 🏃</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #065F46 0%, #064E3B 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        h1 {
+            color: #FCD34D;
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+            text-shadow: 0 0 20px rgba(252, 211, 77, 0.5);
+        }
+        
+        #gameCanvas {
+            border: 4px solid #FCD34D;
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(252, 211, 77, 0.5);
+            background: linear-gradient(180deg, #374151 0%, #1F2937 100%);
+        }
+        
+        .score-container {
+            display: flex;
+            gap: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .score {
+            color: #FCD34D;
+            font-size: 1.5rem;
+        }
+        
+        .high-score {
+            color: #06B6D4;
+            font-size: 1.5rem;
+        }
+        
+        .instructions {
+            color: #9CA3AF;
+            font-size: 0.9rem;
+            margin-top: 1rem;
+        }
+        
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #FCD34D;
+            color: #065F46;
+            border: none;
+            padding: 0.8rem 1.5rem;
+            border-radius: 25px;
+            font-family: 'Poppins', sans-serif;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            font-weight: 600;
+        }
+        
+        .back-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 20px rgba(252, 211, 77, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <a href="games.html" class="back-btn">← Back</a>
+    <h1>Benji Race 🦴</h1>
+    <div class="score-container">
+        <div class="score">Score: <span id="score">0</span></div>
+        <div class="high-score">High Score: <span id="highScore">0</span></div>
+    </div>
+    <canvas id="gameCanvas" width="500" height="600"></canvas>
+    <p class="instructions">↑ ↓ or W/S to switch lanes | Collect bones, avoid obstacles!</p>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreEl = document.getElementById('score');
+        const highScoreEl = document.getElementById('highScore');
+        
+        let score = 0;
+        let highScore = localStorage.getItem('benjiRaceHighScore') || 0;
+        highScoreEl.textContent = highScore;
+        
+        let gameOver = false;
+        let gameStarted = false;
+        
+        const lanes = [150, 275, 400];
+        let currentLane = 1;
+        
+        const benji = {
+            x: 50,
+            y: 275,
+            width: 60,
+            height: 50,
+            lane: 1,
+            tailWag: 0
+        };
+        
+        let obstacles = [];
+        let bones = [];
+        let speed = 5;
+        let spawnTimer = 0;
+        let boneTimer = 0;
+        let groundOffset = 0;
+        
+        const obstacleTypes = ['puddle', 'cat', 'mailbox', 'hydrant'];
+        const obstacleColors = {
+            puddle: '#3B82F6',
+            cat: '#EF4444',
+            mailbox: '#6B7280',
+            hydrant: '#DC2626'
+        };
+        
+        function drawBenji() {
+            ctx.save();
+            ctx.translate(benji.x + benji.width/2, benji.y + benji.height/2);
+            
+            ctx.fillStyle = '#D97706';
+            ctx.beginPath();
+            ctx.ellipse(0, 5, 28, 22, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#FCD34D';
+            ctx.beginPath();
+            ctx.arc(0, -15, 18, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#1F2937';
+            ctx.beginPath();
+            ctx.arc(-7, -18, 4, 0, Math.PI * 2);
+            ctx.arc(7, -18, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#FFF';
+            ctx.beginPath();
+            ctx.arc(-7, -18, 2, 0, Math.PI * 2);
+            ctx.arc(7, -18, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = 'pink';
+            ctx.beginPath();
+            ctx.ellipse(0, -10, 4, 3, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#D97706';
+            ctx.beginPath();
+            ctx.moveTo(-12, -28);
+            ctx.lineTo(-20, -38);
+            ctx.lineTo(-8, -30);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(12, -28);
+            ctx.lineTo(20, -38);
+            ctx.lineTo(8, -30);
+            ctx.fill();
+            
+            benji.tailWag += 0.3;
+            const tailAngle = Math.sin(benji.tailWag) * 0.5;
+            ctx.strokeStyle = '#D97706';
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(0, 20);
+            ctx.quadraticCurveTo(20 * Math.sin(tailAngle), 30, 15 * Math.sin(tailAngle), 40);
+            ctx.stroke();
+            
+            ctx.restore();
+        }
+        
+        function drawLane(lineY) {
+            ctx.strokeStyle = '#4B5563';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([20, 20]);
+            ctx.lineDashOffset = -groundOffset;
+            ctx.beginPath();
+            ctx.moveTo(0, lineY);
+            ctx.lineTo(canvas.width, lineY);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
+        
+        function drawBone(x, y) {
+            ctx.save();
+            ctx.translate(x + 15, y + 15);
+            
+            ctx.fillStyle = '#FEF3C7';
+            ctx.beginPath();
+            ctx.ellipse(-8, 0, 6, 4, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(8, 0, 6, 4, -0.3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#FEF3C7';
+            ctx.beginPath();
+            ctx.rect(-6, -3, 12, 6);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+        
+        function drawObstacle(type, x, y) {
+            ctx.save();
+            ctx.translate(x + 20, y + 20);
+            
+            if (type === 'puddle') {
+                ctx.fillStyle = '#3B82F6';
+                ctx.beginPath();
+                ctx.ellipse(0, 5, 20, 10, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#60A5FA';
+                ctx.beginPath();
+                ctx.ellipse(-5, 3, 6, 3, 0, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (type === 'cat') {
+                ctx.fillStyle = '#EF4444';
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 15, 12, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#EF4444';
+                ctx.beginPath();
+                ctx.moveTo(-10, -8);
+                ctx.lineTo(-15, -18);
+                ctx.lineTo(-5, -10);
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(10, -8);
+                ctx.lineTo(15, -18);
+                ctx.lineTo(5, -10);
+                ctx.fill();
+                ctx.fillStyle = '#FEF2F2';
+                ctx.beginPath();
+                ctx.arc(-5, -2, 3, 0, Math.PI * 2);
+                ctx.arc(5, -2, 3, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#1F2937';
+                ctx.beginPath();
+                ctx.arc(-5, -2, 1.5, 0, Math.PI * 2);
+                ctx.arc(5, -2, 1.5, 0, Math.PI * 2);
+                ctx.fill();
+            } else if (type === 'mailbox') {
+                ctx.fillStyle = '#6B7280';
+                ctx.fillRect(-12, -5, 24, 20);
+                ctx.fillStyle = '#374151';
+                ctx.fillRect(-8, 15, 16, 10);
+                ctx.fillStyle = '#EF4444';
+                ctx.beginPath();
+                ctx.arc(0, -5, 6, 0, Math.PI);
+                ctx.fill();
+            } else if (type === 'hydrant') {
+                ctx.fillStyle = '#DC2626';
+                ctx.beginPath();
+                ctx.ellipse(0, 10, 8, 5, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillRect(-6, -10, 12, 20);
+                ctx.fillStyle = '#B91C1C';
+                ctx.beginPath();
+                ctx.arc(0, -10, 8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#FEE2E2';
+                ctx.beginPath();
+                ctx.arc(-3, -12, 2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            
+            ctx.restore();
+        }
+        
+        function spawnObstacle() {
+            const lane = Math.floor(Math.random() * 3);
+            const type = obstacleTypes[Math.floor(Math.random() * obstacleTypes.length)];
+            obstacles.push({
+                x: canvas.width + 20,
+                y: lanes[lane] - 20,
+                lane: lane,
+                type: type
+            });
+        }
+        
+        function spawnBone() {
+            const lane = Math.floor(Math.random() * 3);
+            let exists = bones.some(b => b.lane === lane);
+            if (!exists) {
+                bones.push({
+                    x: canvas.width + 20,
+                    y: lanes[lane] - 15,
+                    lane: lane
+                });
+            }
+        }
+        
+        function update() {
+            if (gameOver || !gameStarted) return;
+            
+            groundOffset += speed;
+            spawnTimer++;
+            boneTimer++;
+            
+            if (spawnTimer > 60 - speed * 3) {
+                spawnObstacle();
+                spawnTimer = 0;
+            }
+            
+            if (boneTimer > 40) {
+                spawnBone();
+                boneTimer = 0;
+            }
+            
+            for (let i = obstacles.length - 1; i >= 0; i--) {
+                obstacles[i].x -= speed;
+                if (obstacles[i].x < -50) {
+                    obstacles.splice(i, 1);
+                }
+            }
+            
+            for (let i = bones.length - 1; i >= 0; i--) {
+                bones[i].x -= speed;
+                if (bones[i].x < -50) {
+                    bones.splice(i, 1);
+                }
+            }
+            
+            for (let obs of obstacles) {
+                if (obs.lane === benji.lane) {
+                    const dx = benji.x - obs.x;
+                    const dy = benji.y - obs.y;
+                    if (Math.abs(dx) < 40 && Math.abs(dy) < 30) {
+                        gameOver = true;
+                        if (score > highScore) {
+                            highScore = score;
+                            localStorage.setItem('benjiRaceHighScore', highScore);
+                            highScoreEl.textContent = highScore;
+                        }
+                    }
+                }
+            }
+            
+            for (let i = bones.length - 1; i >= 0; i--) {
+                if (bones[i].lane === benji.lane) {
+                    const dx = benji.x - bones[i].x;
+                    const dy = benji.y - bones[i].y;
+                    if (Math.abs(dx) < 40 && Math.abs(dy) < 30) {
+                        score += 10;
+                        scoreEl.textContent = score;
+                        bones.splice(i, 1);
+                        speed = Math.min(12, 5 + score / 50);
+                    }
+                }
+            }
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#1F2937';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            for (let i = 0; i < 3; i++) {
+                drawLane(lanes[i]);
+            }
+            
+            ctx.fillStyle = '#065F46';
+            ctx.fillRect(0, 0, canvas.width, 50);
+            ctx.fillStyle = '#065F46';
+            ctx.fillRect(0, 550, canvas.width, 50);
+            
+            for (let bone of bones) {
+                drawBone(bone.x, bone.y);
+            }
+            
+            for (let obs of obstacles) {
+                drawObstacle(obs.type, obs.x, obs.y);
+            }
+            
+            if (!gameOver) {
+                benji.y = lanes[benji.lane] - benji.height / 2;
+                drawBenji();
+            }
+            
+            if (gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#EF4444';
+                ctx.font = 'bold 48px Poppins';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', canvas.width/2, canvas.height/2 - 30);
+                
+                ctx.fillStyle = '#FCD34D';
+                ctx.font = 'bold 24px Poppins';
+                ctx.fillText('Score: ' + score, canvas.width/2, canvas.height/2 + 20);
+                
+                ctx.fillStyle = '#06B6D4';
+                ctx.font = '18px Poppins';
+                ctx.fillText('Press SPACE to restart', canvas.width/2, canvas.height/2 + 60);
+            }
+            
+            if (!gameStarted && !gameOver) {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.fillStyle = '#FCD34D';
+                ctx.font = 'bold 36px Poppins';
+                ctx.textAlign = 'center';
+                ctx.fillText('BENJI RACE', canvas.width/2, canvas.height/2 - 40);
+                
+                ctx.fillStyle = '#FFF';
+                ctx.font = '18px Poppins';
+                ctx.fillText('Press SPACE to start', canvas.width/2, canvas.height/2 + 20);
+            }
+        }
+        
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                if (gameOver) {
+                    gameOver = false;
+                    score = 0;
+                    speed = 5;
+                    obstacles = [];
+                    bones = [];
+                    spawnTimer = 0;
+                    boneTimer = 0;
+                    benji.lane = 1;
+                    scoreEl.textContent = score;
+                }
+                gameStarted = true;
+            }
+            
+            if (gameStarted && !gameOver) {
+                if (e.code === 'ArrowUp' || e.code === 'KeyW') {
+                    benji.lane = Math.max(0, benji.lane - 1);
+                }
+                if (e.code === 'ArrowDown' || e.code === 'KeyS') {
+                    benji.lane = Math.min(2, benji.lane + 1);
+                }
+            }
+        });
+        
+        gameLoop();
+    </script>
+</body>
+</html>
