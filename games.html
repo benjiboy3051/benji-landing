@@ -248,6 +248,118 @@
         .game-cabinet.hidden {
             display: none;
         }
+
+        .controls-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding: 1rem;
+        }
+
+        .sort-select {
+            padding: 0.7rem 1rem;
+            background: rgba(26, 26, 46, 0.8);
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.6rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .sort-select:hover,
+        .sort-select:focus {
+            outline: none;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        .sort-select option {
+            background: #1a1a2e;
+            color: #fff;
+        }
+
+        .pagination {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+            padding: 1rem;
+        }
+
+        .page-btn {
+            padding: 0.6rem 1rem;
+            background: transparent;
+            border: 2px solid #ff00ff;
+            color: #ff00ff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.6rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .page-btn:hover:not(:disabled) {
+            background: #ff00ff;
+            color: #0a0a0f;
+            box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+        }
+
+        .page-btn:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+
+        .page-numbers {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .page-num {
+            padding: 0.6rem 0.8rem;
+            background: transparent;
+            border: 2px solid #00ffff;
+            color: #00ffff;
+            font-family: 'Press Start 2P', monospace;
+            font-size: 0.6rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        .page-num:hover,
+        .page-num.active {
+            background: #00ffff;
+            color: #0a0a0f;
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+
+        .page-info {
+            color: #00ffff;
+            font-size: 0.6rem;
+            text-shadow: 0 0 5px #00ffff;
+            margin: 0 1rem;
+        }
+
+        .search-container {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filter-buttons-row {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
     </style>
 </head>
 <body>
@@ -264,102 +376,114 @@
                 <button class="filter-btn" data-filter="mobile">MOBILE</button>
                 <button class="filter-btn" data-filter="both">BOTH</button>
             </div>
+            <select class="sort-select" id="gameSort">
+                <option value="recent">MOST RECENT</option>
+                <option value="name-asc">NAME A-Z</option>
+                <option value="name-desc">NAME Z-A</option>
+            </select>
             <input type="text" class="search-input" id="gameSearch" placeholder="SEARCH GAMES...">
         </div>
         
+        <div class="pagination">
+            <button class="page-btn" id="prevBtn">◀ PREV</button>
+            <div class="page-numbers" id="pageNumbers"></div>
+            <span class="page-info" id="pageInfo"></span>
+            <button class="page-btn" id="nextBtn">NEXT ▶</button>
+        </div>
+        
         <div class="games-grid">
-            <a href="benji-runner.html" class="game-cabinet" data-platform="both">
+            <a href="benji-runner.html" class="game-cabinet" data-platform="both" data-created="14">
                 <div class="cabinet-emoji">🏃</div>
                 <h2 class="cabinet-title">BENJI RUNNER</h2>
                 <p class="cabinet-desc">Endless runner - jump over obstacles!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-catch.html" class="game-cabinet" data-platform="both">
+            <a href="benji-catch.html" class="game-cabinet" data-platform="both" data-created="13">
                 <div class="cabinet-emoji">🦴</div>
                 <h2 class="cabinet-title">BENJI CATCH</h2>
                 <p class="cabinet-desc">Catch treats, avoid the bad stuff!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-memory.html" class="game-cabinet" data-platform="both">
+            <a href="benji-memory.html" class="game-cabinet" data-platform="both" data-created="12">
                 <div class="cabinet-emoji">🃏</div>
                 <h2 class="cabinet-title">BENJI MEMORY</h2>
                 <p class="cabinet-desc">Match the doggo pairs!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-jump.html" class="game-cabinet" data-platform="both">
+            <a href="benji-jump.html" class="game-cabinet" data-platform="both" data-created="11">
                 <div class="cabinet-emoji">🐕</div>
                 <h2 class="cabinet-title">BENJI JUMP</h2>
                 <p class="cabinet-desc">Jump up, collect bones!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-bounce.html" class="game-cabinet" data-platform="both">
+            <a href="benji-bounce.html" class="game-cabinet" data-platform="both" data-created="10">
                 <div class="cabinet-emoji">🎾</div>
                 <h2 class="cabinet-title">BENJI BOUNCE</h2>
                 <p class="cabinet-desc">Bounce ball, break bricks!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-trail.html" class="game-cabinet" data-platform="both">
+            <a href="benji-trail.html" class="game-cabinet" data-platform="both" data-created="9">
                 <div class="cabinet-emoji">🐕</div>
                 <h2 class="cabinet-title">BENJI TRAIL</h2>
                 <p class="cabinet-desc">Collect treats, grow the trail!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-hop.html" class="game-cabinet" data-platform="both">
+            <a href="benji-hop.html" class="game-cabinet" data-platform="both" data-created="8">
                 <div class="cabinet-emoji">🐸</div>
                 <h2 class="cabinet-title">BENJI HOP</h2>
                 <p class="cabinet-desc">Cross the roads safely!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-dodge.html" class="game-cabinet" data-platform="both">
+            <a href="benji-dodge.html" class="game-cabinet" data-platform="both" data-created="7">
                 <div class="cabinet-emoji">🎾</div>
                 <h2 class="cabinet-title">BENJI DODGE</h2>
                 <p class="cabinet-desc">Dodge the balls!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-squash.html" class="game-cabinet" data-platform="both">
+            <a href="benji-squash.html" class="game-cabinet" data-platform="both" data-created="6">
                 <div class="cabinet-emoji">🔨</div>
                 <h2 class="cabinet-title">BENJI SQUASH</h2>
                 <p class="cabinet-desc">Whack the doggo!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-dig.html" class="game-cabinet" data-platform="both">
+            <a href="benji-dig.html" class="game-cabinet" data-platform="both" data-created="5">
                 <div class="cabinet-emoji">🦴</div>
                 <h2 class="cabinet-title">BENJI DIG</h2>
                 <p class="cabinet-desc">Dig underground, find bones!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
 
-            <a href="benji-fetch.html" class="game-cabinet" data-platform="both">
+            <a href="benji-fetch.html" class="game-cabinet" data-platform="both" data-created="4">
                 <div class="cabinet-emoji">🎾</div>
                 <h2 class="cabinet-title">BENJI FETCH</h2>
                 <p class="cabinet-desc">Catch the ball, good boy!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-pop.html" class="game-cabinet" data-platform="both">
+            <a href="benji-pop.html" class="game-cabinet" data-platform="both" data-created="3">
                 <div class="cabinet-emoji">🫧</div>
                 <h2 class="cabinet-title">BENJI POP</h2>
                 <p class="cabinet-desc">Pop bubbles, get combos!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-stack.html" class="game-cabinet" data-platform="both">
+            <a href="benji-stack.html" class="game-cabinet" data-platform="both" data-created="2">
                 <div class="cabinet-emoji">🧱</div>
                 <h2 class="cabinet-title">BENJI STACK</h2>
                 <p class="cabinet-desc">Stack blocks, build high!</p>
                 <span class="cabinet-play">PLAY ▶</span>
             </a>
             
-            <a href="benji-swim.html" class="game-cabinet" data-platform="both">
+            <a href="benji-swim.html" class="game-cabinet" data-platform="both" data-created="1">
                 <div class="cabinet-emoji">🏊</div>
                 <h2 class="cabinet-title">BENJI SWIM</h2>
                 <p class="cabinet-desc">Dive deep, collect bubbles!</p>
