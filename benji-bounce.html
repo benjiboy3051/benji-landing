@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>Benji Bounce 🐾</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='28' font-size='28'>🐾</text></svg>" type="image/svg+xml">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { width: 100%; height: 100%; overflow: hidden; background: #1a1a2e; display: flex; align-items: center; justify-content: center; font-family: monospace; }
+canvas { display: block; image-rendering: pixelated; cursor: pointer; }
+</style>
+</head>
+<body>
+<canvas id="c" role="img" aria-label="Benji Bounce - brick breaker. Move paddle with mouse/touch, bounce ball to break bricks!" tabindex="0"></canvas>
+<script>
+(() => {
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+
+const W = 600, H = 500;
+let scale = 1;
+
+function resize() {
+  scale = Math.min(window.innerWidth / W, window.innerHeight / H, 1.2);
+  canvas.width = W;
+  canvas.height = H;
+  canvas.style.width = Math.floor(W * scale) + 'px';
+  canvas.style.height = Math.floor(H * scale) + 'px';
+}
+resize();
+window.addEventListener('resize', resize);
+
+const BRICK_ROWS = 6;
+const BRICK_COLS = 8;
+const BRICK_PADDING = 6;
+const BRICK_W = (W - BRICK_PADDING * 2) / BRICK_COLS - BRICK_PADDING;
+const BRICK_H = 22;
+const BRICK_OFFSET_TOP = 50;
+
+let gameState = 'ready';
+let score = 0;
+let highScore = parseInt(localStorage.getItem('benjiBounceHighScore')) || 0;
+let lives = 3;
+let level = 1;
+let frameCount = 0;
+let shakeTimer = 0;
+let shakeX = 0, shakeY = 0;
+let particles = [];
+
+const paddle = { x: W / 2 - 50, y: H - 40, w: 100, h: 14 };
+const ball = { x: W / 2, y: H - 60, r: 8, vx: 0, vy: 0, speed: 6 };
+let bricks = [];
+let powerups = [];
+let paddleWidth = 100;
+let ballCount = 1;
+let stickyBall = false;
+let ballOnPaddle = true;
+
+let audioCtx = null;
+function ensureAudio() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+function playPaddle() {
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(220, audioCtx.currentTime + 0.08);
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.1);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.1);
+}
+function playBrick() {
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(660 + Math.random() * 200, audioCtx.currentTime);
+  gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.15);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.15);
+}
+function playLoss() {
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(80, audioCtx.currentTime + 0.3);
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.35);
+}
+function playWin() {
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'square';
+  osc.frequency.setValueAtTime(523, audioCtx.currentTime);
+  osc.frequency.setValueAtTime(659, audioCtx.currentTime + 0.1);
+  osc.frequency.setValueAtTime(784, audioCtx.currentTime + 0.2);
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.4);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.4);
+}
+function playLevel() {
+  ensureAudio();
+  const osc = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, audioCtx.currentTime);
+  osc.frequency.setValueAtTime(550, audioCtx.currentTime + 0.1);
+  osc.frequency.setValueAtTime(660, audioCtx.currentTime + 0.2);
+  gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.35);
+  osc.connect(gain); gain.connect(audioCtx.destination);
+  osc.start(audioCtx.currentTime); osc.stop(audioCtx.currentTime + 0.35);
+}
+
+const PAL = {
+  body: '#535353',
+  bodyLight: '#7a7a7a',
+  eye: '#111',
+  nose: '#e74c3c',
+  tongue: '#e74c3c',
+  ear: '#6b4226',
+  outline: '#333'
+};
+
+function drawBenji(x, y, size, look = 'idle') {
+  const s = size / 20;
+  ctx.fillStyle = PAL.ear;
+  ctx.fillRect(x + 1*s, y + 2*s, 3*s, 4*s);
+  ctx.fillRect(x + 14*s, y + 2*s, 3*s, 4*s);
+  ctx.fillStyle = PAL.body;
+  ctx.fillRect(x + 3*s, y + 4*s, 12*s, 10*s);
+  ctx.fillStyle = PAL.bodyLight;
+  ctx.fillRect(x + 4*s, y + 5*s, 10*s, 8*s);
+  ctx.fillStyle = PAL.eye;
+  ctx.fillRect(x + 5*s, y + 6*s, 2*s, 2*s);
+  ctx.fillRect(x + 11*s, y + 6*s, 2*s, 2*s);
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(x + 5*s, y + 6*s, 1*s, 1*s);
+  ctx.fillRect(x + 11*s, y + 6*s, 1*s, 1*s);
+  ctx.fillStyle = PAL.nose;
+  ctx.fillRect(x + 8*s, y + 9*s, 2*s, 1*s);
+  ctx.fillStyle = PAL.tongue;
+  if (look === 'happy') {
+    ctx.fillRect(x + 7*s, y + 11*s, 4*s, 2*s);
+  }
+  ctx.fillStyle = PAL.outline;
+  ctx.fillRect(x + 3*s, y + 4*s, 12*s, 1*s);
+  ctx.fillRect(x + 3*s, y + 13*s, 12*s, 1*s);
+}
+
+function initBricks() {
+  bricks = [];
+  const colors = ['#e74c3c', '#f39c12', '#27ae60', '#3498db', '#9b59b6', '#1abc9c'];
+  for (let r = 0; r < BRICK_ROWS; r++) {
+    for (let c = 0; c < BRICK_COLS; c++) {
+      const pattern = r * 2 + Math.floor(c / 4);
+      if (pattern < level + 2 && Math.random() > 0.15) {
+        bricks.push({
+          x: BRICK_PADDING + c * (BRICK_W + BRICK_PADDING),
+          y: BRICK_OFFSET_TOP + r * (BRICK_H + BRICK_PADDING),
+          w: BRICK_W,
+          h: BRICK_H,
+          color: colors[r % colors.length],
+          hp: Math.ceil((r + 1) / 2),
+          maxHp: Math.ceil((r + 1) / 2)
+        });
+      }
+    }
+  }
+}
+
+function resetBall() {
+  ball.x = paddle.x + paddle.w / 2;
+  ball.y = paddle.y - ball.r - 2;
+  ball.vx = 0;
+  ball.vy = 0;
+  ballOnPaddle = true;
+}
+
+function resetGame() {
+  score = 0;
+  lives = 3;
+  level = 1;
+  paddleWidth = 100;
+  ballCount = 1;
+  stickyBall = false;
+  initBricks();
+  resetBall();
+  particles = [];
+  powerups = [];
+}
+
+function nextLevel() {
+  level++;
+  playWin();
+  initBricks();
+  resetBall();
+  powerups = [];
+}
+
+function updateParticles() {
+  particles = particles.filter(p => {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.15;
+    p.life--;
+    return p.life > 0;
+  });
+}
+
+function drawParticles() {
+  particles.forEach(p => {
+    ctx.globalAlpha = Math.min(1, p.life / 20);
+    ctx.fillStyle = p.color;
+    ctx.fillRect(p.x, p.y, p.size, p.size);
+  });
+  ctx.globalAlpha = 1;
+}
+
+function addParticles(x, y, color, count) {
+  for (let i = 0; i < count; i++) {
+    particles.push({
+      x: x, y: y,
+      vx: (Math.random() - 0.5) * 6,
+      vy: (Math.random() - 0.5) * 6 - 2,
+      life: 20 + Math.random() * 15,
+      size: 2 + Math.random() * 3,
+      color: color
+    });
+  }
+}
+
+function drawPaddle() {
+  ctx.fillStyle = '#535353';
+  ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+  ctx.fillStyle = '#7a7a7a';
+  ctx.fillRect(paddle.x + 2, paddle.y + 2, paddle.w - 4, paddle.h - 4);
+  drawBenji(paddle.x + paddle.w / 2 - 10, paddle.y - 8, 20, 'happy');
+}
+
+function drawBall() {
+  ctx.fillStyle = '#fff';
+  ctx.beginPath();
+  ctx.arc(ball.x, ball.y, ball.r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+function drawBricks() {
+  bricks.forEach(b => {
+    ctx.fillStyle = b.color;
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = 'rgba(255,255,255,0.3)';
+    ctx.fillRect(b.x, b.y, b.w, 3);
+    if (b.hp < b.maxHp) {
+      ctx.fillStyle = 'rgba(0,0,0,0.3)';
+      ctx.fillRect(b.x + 2, b.y + b.h - 6, b.w - 4, 4);
+    }
+  });
+}
+
+function drawPowerups() {
+  powerups.forEach(p => {
+    ctx.fillStyle = p.type === 'wide' ? '#27ae60' : p.type === 'life' ? '#e74c3c' : '#3498db';
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 10px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(p.type === 'wide' ? 'W' : p.type === 'life' ? '♥' : '+', p.x, p.y + 4);
+  });
+}
+
+function drawScore() {
+  ctx.fillStyle = '#aaa';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'right';
+  ctx.fillText(String(score).padStart(6, '0'), W - 15, 25);
+  ctx.fillText('HI ' + String(highScore).padStart(6, '0'), W - 100, 25);
+}
+
+function drawLives() {
+  ctx.fillStyle = '#aaa';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('♥'.repeat(lives), 15, 25);
+}
+
+function drawLevel() {
+  ctx.fillStyle = '#aaa';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('LV ' + level, W / 2, 25);
+}
+
+function drawReady() {
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 24px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('BENJI BOUNCE', W / 2, H / 2 - 40);
+  ctx.font = '40px serif';
+  ctx.fillText('🐾', W / 2, H / 2 + 10);
+  ctx.font = '14px monospace';
+  ctx.fillText('Click or tap to launch', W / 2, H / 2 + 50);
+  if (highScore > 0) {
+    ctx.fillStyle = '#f5a623';
+    ctx.fillText('High Score: ' + highScore, W / 2, H / 2 + 80);
+  }
+}
+
+function drawGameOver() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 24px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('GAME OVER', W / 2, H / 2 - 20);
+  ctx.font = '14px monospace';
+  ctx.fillText('Score: ' + score, W / 2, H / 2 + 15);
+  if (score >= highScore && score > 0) {
+    ctx.fillStyle = '#f5a623';
+    ctx.fillText('★ NEW HIGH SCORE ★', W / 2, H / 2 + 40);
+  }
+  ctx.fillStyle = '#aaa';
+  ctx.fillText('Click to play again', W / 2, H / 2 + 70);
+}
+
+function drawWin() {
+  ctx.fillStyle = 'rgba(0,0,0,0.6)';
+  ctx.fillRect(0, 0, W, H);
+  ctx.fillStyle = '#27ae60';
+  ctx.font = 'bold 24px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('LEVEL COMPLETE!', W / 2, H / 2 - 20);
+  ctx.fillStyle = '#fff';
+  ctx.font = '14px monospace';
+  ctx.fillText('Get ready for level ' + (level + 1), W / 2, H / 2 + 20);
+}
+
+function update() {
+  frameCount++;
+  if (shakeTimer > 0) {
+    shakeTimer--;
+    shakeX = (Math.random() - 0.5) * shakeTimer * 0.8;
+    shakeY = (Math.random() - 0.5) * shakeTimer * 0.5;
+  } else { shakeX = 0; shakeY = 0; }
+
+  if (gameState === 'ready' || gameState === 'gameover') return;
+
+  paddle.w = paddleWidth;
+
+  if (ballOnPaddle) {
+    ball.x = paddle.x + paddle.w / 2;
+    ball.y = paddle.y - ball.r - 2;
+    return;
+  }
+
+  ball.x += ball.vx;
+  ball.y += ball.vy;
+
+  if (ball.x - ball.r < 0 || ball.x + ball.r > W) {
+    ball.vx *= -1;
+    ball.x = Math.max(ball.r, Math.min(W - ball.r, ball.x));
+    playPaddle();
+  }
+  if (ball.y - ball.r < BRICK_OFFSET_TOP) {
+    ball.vy *= -1;
+    ball.y = BRICK_OFFSET_TOP + ball.r;
+    playPaddle();
+  }
+
+  if (ball.y + ball.r > paddle.y && ball.y - ball.r < paddle.y + paddle.h &&
+      ball.x > paddle.x && ball.x < paddle.x + paddle.w) {
+    ball.vy = -Math.abs(ball.vy);
+    const hitPos = (ball.x - (paddle.x + paddle.w / 2)) / (paddle.w / 2);
+    ball.vx = hitPos * 5;
+    ball.y = paddle.y - ball.r;
+    playPaddle();
+    addParticles(ball.x, ball.y + ball.r, '#7a7a7a', 3);
+  }
+
+  let hitBrick = false;
+  for (let i = bricks.length - 1; i >= 0; i--) {
+    const b = bricks[i];
+    if (ball.x + ball.r > b.x && ball.x - ball.r < b.x + b.w &&
+        ball.y + ball.r > b.y && ball.y - ball.r < b.y + b.h) {
+      
+      const overlapLeft = ball.x + ball.r - b.x;
+      const overlapRight = b.x + b.w - (ball.x - ball.r);
+      const overlapTop = ball.y + ball.r - b.y;
+      const overlapBottom = b.y + b.h - (ball.y - ball.r);
+      const minOverlap = Math.min(overlapLeft, overlapRight, overlapTop, overlapBottom);
+      
+      if (minOverlap === overlapLeft || minOverlap === overlapRight) {
+        ball.vx *= -1;
+      } else {
+        ball.vy *= -1;
+      }
+      
+      b.hp--;
+      hitBrick = true;
+      playBrick();
+      addParticles(ball.x, ball.y, b.color, 5);
+      
+      if (b.hp <= 0) {
+        bricks.splice(i, 1);
+        score += b.maxHp * 10;
+        
+        if (Math.random() < 0.1) {
+          powerups.push({
+            x: b.x + b.w / 2,
+            y: b.y + b.h / 2,
+            type: Math.random() < 0.5 ? 'wide' : (Math.random() < 0.7 ? 'life' : 'ball')
+          });
+        }
+      }
+      break;
+    }
+  }
+
+  powerups.forEach((p, idx) => {
+    p.y += 2;
+    
+    if (p.y + 10 > paddle.y && p.y - 10 < paddle.y + paddle.h &&
+        p.x > paddle.x && p.x < paddle.x + paddle.w) {
+      if (p.type === 'wide') {
+        paddleWidth = Math.min(160, paddleWidth + 20);
+        setTimeout(() => paddleWidth = Math.max(60, paddleWidth - 20), 8000);
+      } else if (p.type === 'life') {
+        lives = Math.min(5, lives + 1);
+      } else if (p.type === 'ball') {
+        ballCount++;
+      }
+      powerups.splice(idx, 1);
+    }
+    
+    if (p.y > H) powerups.splice(idx, 1);
+  });
+
+  if (ball.y > H + 20) {
+    lives--;
+    playLoss();
+    if (lives <= 0) {
+      gameState = 'gameover';
+      shakeTimer = 15;
+      if (score > highScore) {
+        highScore = score;
+        localStorage.setItem('benjiBounceHighScore', highScore);
+      }
+    } else {
+      resetBall();
+    }
+  }
+
+  if (bricks.length === 0) {
+    gameState = 'win';
+    playWin();
+    setTimeout(nextLevel, 2000);
+  }
+
+  updateParticles();
+}
+
+function draw() {
+  ctx.save();
+  ctx.translate(shakeX, shakeY);
+  
+  ctx.fillStyle = '#1a1a2e';
+  ctx.fillRect(0, 0, W, H);
+  
+  ctx.fillStyle = '#252540';
+  for (let r = 0; r < BRICK_ROWS + 1; r++) {
+    for (let c = 0; c < 2; c++) {
+      const x = (c * W + frameCount * 0.5) % (W * 2) - W * 0.5;
+      const y = BRICK_OFFSET_TOP + r * (BRICK_H + BRICK_PADDING);
+      ctx.fillRect(x, y, 2, 2);
+    }
+  }
+
+  drawBricks();
+  drawPowerups();
+  drawPaddle();
+  drawBall();
+  drawParticles();
+  
+  ctx.fillStyle = '#aaa';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('BENJI BOUNCE', 15, 25);
+  
+  drawScore();
+  drawLives();
+  drawLevel();
+
+  if (gameState === 'ready') drawReady();
+  if (gameState === 'gameover') drawGameOver();
+  if (gameState === 'win') drawWin();
+
+  ctx.restore();
+}
+
+function loop() { update(); draw(); requestAnimationFrame(loop); }
+
+function handleLaunch() {
+  if (gameState === 'ready') {
+    gameState = 'playing';
+    resetGame();
+  } else if (gameState === 'gameover') {
+    gameState = 'playing';
+    resetGame();
+  } else if (gameState === 'playing' && ballOnPaddle) {
+    ballOnPaddle = false;
+    ball.vx = (Math.random() - 0.5) * 4;
+    ball.vy = -ball.speed;
+  }
+}
+
+document.addEventListener('mousedown', e => {
+  e.preventDefault();
+  handleLaunch();
+});
+
+canvas.addEventListener('touchstart', e => {
+  e.preventDefault();
+  handleLaunch();
+}, { passive: false });
+
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) / rect.width * W;
+  paddle.x = Math.max(0, Math.min(W - paddle.w, mx - paddle.w / 2));
+});
+
+canvas.addEventListener('touchmove', e => {
+  e.preventDefault();
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.touches[0].clientX - rect.left) / rect.width * W;
+  paddle.x = Math.max(0, Math.min(W - paddle.w, mx - paddle.w / 2));
+}, { passive: false });
+
+canvas.focus();
+
+loop();
+})();
+</script>
+</body>
+</html>
