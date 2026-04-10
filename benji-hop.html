@@ -1,0 +1,412 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Hop 🐕 - Cross the Roads!</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fredoka+One&display=swap');
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Fredoka One', cursive;
+            overflow: hidden;
+        }
+        
+        h1 {
+            color: #e94560;
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 3px 3px 0 #0f3460;
+        }
+        
+        .game-container {
+            position: relative;
+        }
+        
+        canvas {
+            border: 4px solid #e94560;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(233, 69, 96, 0.5);
+        }
+        
+        .score-board {
+            position: absolute;
+            top: -50px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 30px;
+            color: #fff;
+            font-size: 1.2rem;
+        }
+        
+        .score-item {
+            background: rgba(233, 69, 96, 0.3);
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 2px solid #e94560;
+        }
+        
+        .instructions {
+            color: #a0a0a0;
+            margin-top: 15px;
+            font-size: 1rem;
+            text-align: center;
+        }
+        
+        .instructions span {
+            color: #e94560;
+        }
+        
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-family: 'Fredoka One', cursive;
+            font-size: 1rem;
+            cursor: pointer;
+            text-decoration: none;
+            transition: transform 0.2s;
+        }
+        
+        .back-btn:hover {
+            transform: scale(1.1);
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">← Back</a>
+    <h1>🐕 Benji Hop 🐕</h1>
+    <div class="game-container">
+        <div class="score-board">
+            <div class="score-item">Score: <span id="score">0</span></div>
+            <div class="score-item">Lives: <span id="lives">3</span></div>
+            <div class="score-item">Level: <span id="level">1</span></div>
+        </div>
+        <canvas id="gameCanvas" width="600" height="500"></canvas>
+    </div>
+    <p class="instructions">Use <span>Arrow Keys</span> or <span>WASD</span> to move. Help Benji cross the roads safely!</p>
+    
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        const COLS = 10;
+        const ROWS = 10;
+        const CELL_SIZE = 60;
+        
+        const laneTypes = ['safe', 'road', 'road', 'safe', 'road', 'road', 'road', 'safe', 'goal'];
+        
+        let benji = {
+            x: 5,
+            y: 9,
+            size: 40,
+            color: '#F59E0B'
+        };
+        
+        let score = 0;
+        let lives = 3;
+        let level = 1;
+        
+        const cars = [];
+        const CAR_COLORS = ['#ef4444', '#3b82f6', '#22c55e', '#a855f7'];
+        
+        for (let row = 0; row < ROWS; row++) {
+            cars[row] = [];
+            if (laneTypes[row] === 'road') {
+                const numCars = 2 + Math.floor(Math.random() * 2);
+                for (let i = 0; i < numCars; i++) {
+                    cars[row].push({
+                        x: Math.random() * canvas.width,
+                        speed: (1.5 + Math.random() * 2) * (Math.random() > 0.5 ? 1 : -1),
+                        width: 50 + Math.random() * 30,
+                        color: CAR_COLORS[Math.floor(Math.random() * CAR_COLORS.length)]
+                    });
+                }
+            }
+        }
+        
+        let keys = {};
+        
+        document.addEventListener('keydown', (e) => {
+            keys[e.key] = true;
+            if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'w', 'a', 's', 'd'].includes(e.key)) {
+                e.preventDefault();
+            }
+        });
+        
+        document.addEventListener('keyup', (e) => {
+            keys[e.key] = false;
+        });
+        
+        function drawLane(row, y) {
+            if (laneTypes[row] === 'safe') {
+                ctx.fillStyle = '#4ade80';
+            } else if (laneTypes[row] === 'road') {
+                ctx.fillStyle = '#374151';
+            } else if (laneTypes[row] === 'goal') {
+                ctx.fillStyle = '#fbbf24';
+            }
+            ctx.fillRect(0, y, canvas.width, CELL_SIZE);
+            
+            if (laneTypes[row] === 'road') {
+                ctx.strokeStyle = '#fbbf24';
+                ctx.setLineDash([20, 20]);
+                ctx.beginPath();
+                ctx.moveTo(0, y + CELL_SIZE/2);
+                ctx.lineTo(canvas.width, y + CELL_SIZE/2);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
+            
+            if (laneTypes[row] === 'goal') {
+                for (let i = 0; i < canvas.width; i += 30) {
+                    ctx.fillStyle = '#f59e0b';
+                    ctx.beginPath();
+                    ctx.arc(i + 15, y + 30, 10, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+        }
+        
+        function drawBenji() {
+            const x = benji.x * CELL_SIZE + CELL_SIZE/2;
+            const y = benji.y * CELL_SIZE + CELL_SIZE/2;
+            const s = benji.size;
+            
+            ctx.fillStyle = benji.color;
+            ctx.beginPath();
+            ctx.ellipse(x, y + 5, s/2, s/2.5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(x - 8, y - 5, 4, 0, Math.PI * 2);
+            ctx.arc(x + 8, y - 5, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(x - 7, y - 6, 2, 0, Math.PI * 2);
+            ctx.arc(x + 9, y - 6, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.arc(x, y + 3, 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(x + 2, y + 2, 2, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#F59E0B';
+            ctx.beginPath();
+            ctx.ellipse(x - 18, y - 12, 8, 12, -0.3, 0, Math.PI * 2);
+            ctx.ellipse(x + 18, y - 12, 8, 12, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#000';
+            ctx.beginPath();
+            ctx.ellipse(x - 18, y - 16, 3, 5, -0.3, 0, Math.PI * 2);
+            ctx.ellipse(x + 18, y - 16, 3, 5, 0.3, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#F59E0B';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(x, y + 8, 4, 0.1 * Math.PI, 0.9 * Math.PI);
+            ctx.stroke();
+        }
+        
+        function drawCars() {
+            for (let row = 0; row < ROWS; row++) {
+                if (laneTypes[row] !== 'road') continue;
+                
+                cars[row].forEach(car => {
+                    ctx.fillStyle = car.color;
+                    
+                    ctx.beginPath();
+                    ctx.roundRect(car.x, row * CELL_SIZE + 10, car.width, 40, 5);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#1f2937';
+                    ctx.beginPath();
+                    ctx.arc(car.x + 10, row * CELL_SIZE + 50, 8, 0, Math.PI * 2);
+                    ctx.arc(car.x + car.width - 10, row * CELL_SIZE + 50, 8, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath();
+                    ctx.arc(car.x + 5, row * CELL_SIZE + 15, 5, 0, Math.PI * 2);
+                    ctx.arc(car.x + car.width - 5, row * CELL_SIZE + 15, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(car.x + 5, row * CELL_SIZE + 45, 5, 0, Math.PI * 2);
+                    ctx.arc(car.x + car.width - 5, row * CELL_SIZE + 45, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                });
+            }
+        }
+        
+        function updateCars() {
+            for (let row = 0; row < ROWS; row++) {
+                if (laneTypes[row] !== 'road') continue;
+                
+                cars[row].forEach(car => {
+                    car.x += car.speed * (1 + level * 0.2);
+                    
+                    if (car.speed > 0 && car.x > canvas.width) {
+                        car.x = -car.width;
+                    } else if (car.speed < 0 && car.x + car.width < 0) {
+                        car.x = canvas.width;
+                    }
+                });
+            }
+        }
+        
+        function checkCollisions() {
+            const benjiRect = {
+                x: benji.x * CELL_SIZE + 10,
+                y: benji.y * CELL_SIZE + 10,
+                width: CELL_SIZE - 20,
+                height: CELL_SIZE - 20
+            };
+            
+            const row = benji.y;
+            if (laneTypes[row] !== 'road') return false;
+            
+            for (const car of cars[row]) {
+                const carRect = {
+                    x: car.x,
+                    y: row * CELL_SIZE + 10,
+                    width: car.width,
+                    height: 40
+                };
+                
+                if (benjiRect.x < carRect.x + carRect.width &&
+                    benjiRect.x + benjiRect.width > carRect.x &&
+                    benjiRect.y < carRect.y + carRect.height &&
+                    benjiRect.y + benjiRect.height > carRect.y) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        
+        function moveBenji() {
+            const moved = { x: benji.x, y: benji.y };
+            
+            if (keys['ArrowUp'] || keys['w'] || keys['W']) moved.y--;
+            if (keys['ArrowDown'] || keys['s'] || keys['S']) moved.y++;
+            if (keys['ArrowLeft'] || keys['a'] || keys['A']) moved.x--;
+            if (keys['ArrowRight'] || keys['d'] || keys['D']) moved.x++;
+            
+            moved.x = Math.max(0, Math.min(COLS - 1, moved.x));
+            moved.y = Math.max(0, Math.min(ROWS - 1, moved.y));
+            
+            if (moved.x !== benji.x || moved.y !== benji.y) {
+                benji.x = moved.x;
+                benji.y = moved.y;
+                keys = {};
+            }
+            
+            if (laneTypes[benji.y] === 'goal') {
+                score += 100 * level;
+                level++;
+                benji.x = 5;
+                benji.y = 9;
+                
+                for (let row = 0; row < ROWS; row++) {
+                    if (cars[row]) {
+                        cars[row].forEach(car => {
+                            car.speed *= 1.1;
+                        });
+                    }
+                }
+                
+                updateDisplay();
+            }
+        }
+        
+        function gameOver() {
+            lives--;
+            updateDisplay();
+            
+            if (lives <= 0) {
+                alert(`Game Over! Final Score: ${score}\nBetter luck next time, pup! 🐕`);
+                score = 0;
+                lives = 3;
+                level = 1;
+                benji.x = 5;
+                benji.y = 9;
+                
+                for (let row = 0; row < ROWS; row++) {
+                    if (cars[row]) {
+                        cars[row].forEach(car => {
+                            car.speed = (1.5 + Math.random() * 2) * (car.speed > 0 ? 1 : -1);
+                        });
+                    }
+                }
+            } else {
+                benji.x = 5;
+                benji.y = 9;
+            }
+            updateDisplay();
+        }
+        
+        function updateDisplay() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('lives').textContent = lives;
+            document.getElementById('level').textContent = level;
+        }
+        
+        let gameOverShown = false;
+        
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            for (let row = 0; row < ROWS; row++) {
+                drawLane(row, row * CELL_SIZE);
+            }
+            
+            moveBenji();
+            updateCars();
+            drawCars();
+            
+            if (checkCollisions() && !gameOverShown) {
+                gameOverShown = true;
+                gameOver();
+                setTimeout(() => gameOverShown = false, 500);
+            }
+            
+            drawBenji();
+            
+            requestAnimationFrame(gameLoop);
+        }
+        
+        updateDisplay();
+        gameLoop();
+    </script>
+</body>
+</html>
