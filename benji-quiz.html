@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Quiz 🐕</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a0a2e 0%, #0a1a2e 50%, #0a2e1a 100%);
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .game-header {
+            text-align: center;
+            padding: 1rem;
+            width: 100%;
+        }
+        
+        .title {
+            font-size: 2rem;
+            color: #00ff88;
+            text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88;
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from { text-shadow: 0 0 20px #00ff88, 0 0 40px #00ff88; }
+            to { text-shadow: 0 0 30px #00ff88, 0 0 60px #00ff88, 0 0 80px #00ff88; }
+        }
+        
+        .stats {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-top: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        .stat {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            border: 2px solid rgba(0, 255, 136, 0.5);
+        }
+        
+        .stat-label {
+            color: #aaa;
+            font-size: 0.8rem;
+        }
+        
+        .stat-value {
+            color: #00ff88;
+            font-weight: bold;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            padding: 1rem;
+        }
+        
+        .quiz-card {
+            background: rgba(0, 0, 0, 0.7);
+            border: 3px solid #00ff88;
+            border-radius: 20px;
+            padding: 2rem;
+            max-width: 600px;
+            width: 90%;
+            text-align: center;
+            box-shadow: 0 0 30px rgba(0, 255, 136, 0.3);
+        }
+        
+        .question-number {
+            color: #ff00ff;
+            font-size: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .question {
+            font-size: 1.3rem;
+            color: #fff;
+            margin-bottom: 1.5rem;
+            line-height: 1.5;
+        }
+        
+        .options {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+        
+        .option {
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid #00ffff;
+            border-radius: 10px;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 1rem;
+            color: #fff;
+        }
+        
+        .option:hover {
+            background: rgba(0, 255, 255, 0.2);
+            transform: scale(1.02);
+            box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+        }
+        
+        .option.correct {
+            background: #00ff88;
+            color: #000;
+            border-color: #00ff88;
+        }
+        
+        .option.wrong {
+            background: #ff4444;
+            color: #fff;
+            border-color: #ff4444;
+        }
+        
+        .option.disabled {
+            pointer-events: none;
+            opacity: 0.7;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            max-width: 600px;
+            height: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-bottom: 1rem;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff00ff, #00ffff);
+            transition: width 0.5s ease;
+        }
+        
+        .feedback {
+            font-size: 1.5rem;
+            margin: 1rem 0;
+            animation: popIn 0.3s ease-out;
+        }
+        
+        @keyframes popIn {
+            from { transform: scale(0); }
+            to { transform: scale(1); }
+        }
+        
+        .start-screen, .game-over-screen {
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #00ff88;
+            border-radius: 20px;
+            padding: 3rem;
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .start-btn, .restart-btn {
+            background: #00ff88;
+            color: #000;
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            font-family: inherit;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 1rem;
+            transition: all 0.3s ease;
+            font-weight: bold;
+        }
+        
+        .start-btn:hover, .restart-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px #00ff88;
+        }
+        
+        .doggo {
+            font-size: 5rem;
+            margin-bottom: 1rem;
+            animation: bounce 1s ease-in-out infinite;
+        }
+        
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .final-score {
+            font-size: 3rem;
+            color: #ffd700;
+            margin: 1rem 0;
+        }
+        
+        .message {
+            font-size: 1.2rem;
+            color: #aaa;
+            margin-bottom: 1rem;
+        }
+        
+        .instructions {
+            margin-top: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="game-header">
+        <h1 class="title">🐕 BENJI QUIZ 🐕</h1>
+    </div>
+    
+    <div class="stats">
+        <div class="stat">
+            <div class="stat-label">SCORE</div>
+            <div class="stat-value" id="score">0</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">QUESTION</div>
+            <div class="stat-value" id="questionNum">1/10</div>
+        </div>
+        <div class="stat">
+            <div class="stat-label">STREAK</div>
+            <div class="stat-value" id="streak">0</div>
+        </div>
+    </div>
+    
+    <div class="progress-bar">
+        <div class="progress-fill" id="progress" style="width: 0%"></div>
+    </div>
+    
+    <div class="game-container">
+        <div class="start-screen" id="startScreen">
+            <div class="doggo">🐕</div>
+            <h2>BENJI'S TRIVIA QUIZ!</h2>
+            <p style="color: #aaa; margin: 1rem 0;">Answer 10 fun questions!</p>
+            <button class="start-btn" onclick="startGame()">START QUIZ</button>
+        </div>
+        
+        <div class="quiz-card hidden" id="quizCard">
+            <div class="question-number" id="questionNumber">Question 1</div>
+            <div class="question" id="question">Question text here</div>
+            <div class="options" id="options"></div>
+            <div class="feedback" id="feedback"></div>
+        </div>
+        
+        <div class="game-over-screen hidden" id="gameOverScreen">
+            <div class="doggo">🎉</div>
+            <h2>QUIZ COMPLETE!</h2>
+            <div class="final-score" id="finalScore">0/10</div>
+            <p class="message" id="finalMessage">Good job!</p>
+            <button class="restart-btn" onclick="startGame()">PLAY AGAIN</button>
+            <a href="games.html" class="instructions" style="display: block; margin-top: 1rem; color: #00ffff;">← Back to Arcade</a>
+        </div>
+    </div>
+    
+    <p class="instructions">Click the correct answer!</p>
+
+    <script>
+        const questions = [
+            {
+                question: "What is a dog's most powerful sense?",
+                options: ["Sight", "Smell", "Hearing", "Taste"],
+                correct: 1
+            },
+            {
+                question: "How many teeth does an adult dog have?",
+                options: ["28", "32", "42", "48"],
+                correct: 2
+            },
+            {
+                question: "Which breed is known as the 'King of Terriers'?",
+                options: ["Yorkshire Terrier", "Airedale Terrier", "Scottish Terrier", "Bull Terrier"],
+                correct: 1
+            },
+            {
+                question: "What is a dog's normal body temperature?",
+                options: ["97-99°F", "100-102.5°F", "103-105°F", "94-96°F"],
+                correct: 1
+            },
+            {
+                question: "Which food is TOXIC for dogs?",
+                options: ["Carrots", "Chocolate", "Chicken", "Rice"],
+                correct: 1
+            },
+            {
+                question: "How many puppies can a dog have at once?",
+                options: ["1-2", "3-5", "1-20", "Always 5"],
+                correct: 2
+            },
+            {
+                question: "What does it mean when a dog wags its tail to the RIGHT?",
+                options: ["Fear", "Happiness", "Aggression", "Exhaustion"],
+                correct: 1
+            },
+            {
+                question: "Which dog breed originated in Germany?",
+                options: ["Poodle", "Labrador", "Golden Retriever", "Dalmatian"],
+                correct: 0
+            },
+            {
+                question: "How often should you walk your dog?",
+                options: ["Once a week", "Once a month", "At least once daily", "Never"],
+                correct: 2
+            },
+            {
+                question: "What is the smartest dog breed commonly recognized?",
+                options: ["Chihuahua", "Pug", "Border Collie", "Basset Hound"],
+                correct: 2
+            },
+            {
+                question: "Which direction do dogs sweat from?",
+                options: ["Tongue", "Paws", "Ears", "Nose"],
+                correct: 1
+            },
+            {
+                question: "How old is a dog in 'dog years' when they're 2 years old?",
+                options: ["2", "14", "24", "4"],
+                correct: 2
+            },
+            {
+                question: "What is the largest dog breed?",
+                options: ["German Shepherd", "Great Dane", "Labrador", "Poodle"],
+                correct: 1
+            },
+            {
+                question: "Why do dogs spin before lying down?",
+                options: ["They're dizzy", "Wild instinct to flatten grass", "They love spinning", "They're bored"],
+                correct: 1
+            },
+            {
+                question: "Which color do dogs see best?",
+                options: ["Red", "Blue", "Green", "Purple"],
+                correct: 1
+            }
+        ];
+        
+        let currentQuestion = 0;
+        let score = 0;
+        let streak = 0;
+        let askedQuestions = [];
+        
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
+        
+        function selectRandomQuestions(count) {
+            const shuffled = shuffleArray([...questions]);
+            return shuffled.slice(0, count);
+        }
+        
+        function startGame() {
+            currentQuestion = 0;
+            score = 0;
+            streak = 0;
+            askedQuestions = selectRandomQuestions(10);
+            
+            document.getElementById('score').textContent = '0';
+            document.getElementById('streak').textContent = '0';
+            document.getElementById('startScreen').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.add('hidden');
+            document.getElementById('quizCard').classList.remove('hidden');
+            
+            showQuestion();
+        }
+        
+        function showQuestion() {
+            const q = askedQuestions[currentQuestion];
+            document.getElementById('questionNumber').textContent = `Question ${currentQuestion + 1}`;
+            document.getElementById('question').textContent = q.question;
+            document.getElementById('questionNum').textContent = `${currentQuestion + 1}/10`;
+            document.getElementById('progress').style.width = `${(currentQuestion / 10) * 100}%`;
+            document.getElementById('feedback').textContent = '';
+            
+            const optionsDiv = document.getElementById('options');
+            optionsDiv.innerHTML = '';
+            
+            q.options.forEach((opt, idx) => {
+                const btn = document.createElement('button');
+                btn.className = 'option';
+                btn.textContent = opt;
+                btn.onclick = () => selectAnswer(idx);
+                optionsDiv.appendChild(btn);
+            });
+        }
+        
+        function selectAnswer(idx) {
+            const q = askedQuestions[currentQuestion];
+            const buttons = document.querySelectorAll('.option');
+            
+            buttons.forEach(btn => btn.classList.add('disabled'));
+            
+            if (idx === q.correct) {
+                buttons[idx].classList.add('correct');
+                score++;
+                streak++;
+                document.getElementById('feedback').textContent = '✅ Correct!';
+                document.getElementById('feedback').style.color = '#00ff88';
+            } else {
+                buttons[idx].classList.add('wrong');
+                buttons[q.correct].classList.add('correct');
+                streak = 0;
+                document.getElementById('feedback').textContent = '❌ Wrong!';
+                document.getElementById('feedback').style.color = '#ff4444';
+            }
+            
+            document.getElementById('score').textContent = score;
+            document.getElementById('streak').textContent = streak;
+            
+            setTimeout(() => {
+                currentQuestion++;
+                if (currentQuestion < 10) {
+                    showQuestion();
+                } else {
+                    endGame();
+                }
+            }, 1000);
+        }
+        
+        function endGame() {
+            document.getElementById('quizCard').classList.add('hidden');
+            document.getElementById('gameOverScreen').classList.remove('hidden');
+            document.getElementById('finalScore').textContent = `${score}/10`;
+            
+            let message = '';
+            if (score === 10) message = '🎓 Perfect Score! You are a dog expert!';
+            else if (score >= 8) message = '🐕 Great job! You know your stuff!';
+            else if (score >= 5) message = '👍 Good effort! Keep learning!';
+            else message = '📚 Study up and try again!';
+            
+            document.getElementById('finalMessage').textContent = message;
+        }
+    </script>
+</body>
+</html>
