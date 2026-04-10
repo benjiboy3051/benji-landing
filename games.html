@@ -511,25 +511,78 @@
         document.addEventListener('DOMContentLoaded', function() {
             const filterButtons = document.querySelectorAll('.filter-btn');
             const searchInput = document.getElementById('gameSearch');
+            const sortSelect = document.getElementById('gameSort');
             const gameCabinets = document.querySelectorAll('.game-cabinet');
+            const prevBtn = document.getElementById('prevBtn');
+            const nextBtn = document.getElementById('nextBtn');
+            const pageNumbers = document.getElementById('pageNumbers');
+            const pageInfo = document.getElementById('pageInfo');
             
             let currentFilter = 'all';
             let searchTerm = '';
+            let currentSort = 'recent';
+            let currentPage = 1;
+            const gamesPerPage = 6;
             
-            function filterGames() {
-                gameCabinets.forEach(cabinet => {
+            function getVisibleGames() {
+                return Array.from(gameCabinets).filter(cabinet => {
                     const platform = cabinet.getAttribute('data-platform');
                     const title = cabinet.querySelector('.cabinet-title').textContent.toLowerCase();
                     
                     let showByPlatform = currentFilter === 'all' || platform === currentFilter || platform === 'both';
                     let showBySearch = searchTerm === '' || title.includes(searchTerm);
                     
-                    if (showByPlatform && showBySearch) {
-                        cabinet.classList.remove('hidden');
+                    return showByPlatform && showBySearch;
+                });
+            }
+            
+            function sortGames(games) {
+                return games.sort((a, b) => {
+                    if (currentSort === 'recent') {
+                        return parseInt(b.getAttribute('data-created') || 0) - parseInt(a.getAttribute('data-created') || 0);
+                    } else if (currentSort === 'name-asc') {
+                        return a.querySelector('.cabinet-title').textContent.localeCompare(b.querySelector('.cabinet-title').textContent);
                     } else {
-                        cabinet.classList.add('hidden');
+                        return b.querySelector('.cabinet-title').textContent.localeCompare(a.querySelector('.cabinet-title').textContent);
                     }
                 });
+            }
+            
+            function paginateGames() {
+                const visibleGames = getVisibleGames();
+                const sortedGames = sortGames(visibleGames);
+                const totalPages = Math.ceil(sortedGames.length / gamesPerPage);
+                
+                currentPage = Math.min(currentPage, totalPages) || 1;
+                
+                gameCabinets.forEach(cabinet => cabinet.classList.add('hidden'));
+                
+                const startIdx = (currentPage - 1) * gamesPerPage;
+                const endIdx = startIdx + gamesPerPage;
+                
+                sortedGames.slice(startIdx, endIdx).forEach(game => game.classList.remove('hidden'));
+                
+                // Update pagination controls
+                pageNumbers.innerHTML = '';
+                for (let i = 1; i <= totalPages; i++) {
+                    const pageBtn = document.createElement('button');
+                    pageBtn.className = 'page-num' + (i === currentPage ? ' active' : '');
+                    pageBtn.textContent = i;
+                    pageBtn.addEventListener('click', () => {
+                        currentPage = i;
+                        paginateGames();
+                    });
+                    pageNumbers.appendChild(pageBtn);
+                }
+                
+                pageInfo.textContent = `${currentPage}/${totalPages}`;
+                prevBtn.disabled = currentPage <= 1;
+                nextBtn.disabled = currentPage >= totalPages;
+            }
+            
+            function filterAndPaginate() {
+                currentPage = 1;
+                paginateGames();
             }
             
             filterButtons.forEach(btn => {
@@ -537,14 +590,38 @@
                     filterButtons.forEach(b => b.classList.remove('active'));
                     this.classList.add('active');
                     currentFilter = this.getAttribute('data-filter');
-                    filterGames();
+                    filterAndPaginate();
                 });
             });
             
             searchInput.addEventListener('input', function() {
                 searchTerm = this.value.toLowerCase().trim();
-                filterGames();
+                filterAndPaginate();
             });
+            
+            sortSelect.addEventListener('change', function() {
+                currentSort = this.value;
+                paginateGames();
+            });
+            
+            prevBtn.addEventListener('click', function() {
+                if (currentPage > 1) {
+                    currentPage--;
+                    paginateGames();
+                }
+            });
+            
+            nextBtn.addEventListener('click', function() {
+                const visibleGames = getVisibleGames();
+                const totalPages = Math.ceil(visibleGames.length / gamesPerPage);
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    paginateGames();
+                }
+            });
+            
+            // Initialize
+            paginateGames();
         });
     </script>
 </body>
