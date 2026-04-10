@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Stack 🦴</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #1a0a2e 0%, #0a1a2e 50%, #0a2e1a 100%);
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .game-header {
+            text-align: center;
+            padding: 1rem;
+            width: 100%;
+        }
+        
+        .title {
+            font-size: 2rem;
+            color: #ffd700;
+            text-shadow: 0 0 20px #ffd700, 0 0 40px #ffa500;
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        
+        @keyframes glow {
+            from { text-shadow: 0 0 20px #ffd700, 0 0 40px #ffa500; }
+            to { text-shadow: 0 0 30px #ffd700, 0 0 60px #ffa500, 0 0 80px #ff6600; }
+        }
+        
+        .stats {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-top: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        .stat {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            border: 2px solid rgba(255, 215, 0, 0.5);
+        }
+        
+        .stat-label {
+            color: #aaa;
+            font-size: 0.8rem;
+        }
+        
+        .stat-value {
+            color: #ffd700;
+            font-weight: bold;
+        }
+        
+        canvas {
+            border: 3px solid #ffd700;
+            border-radius: 10px;
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+            background: rgba(0, 0, 0, 0.5);
+        }
+        
+        .instructions {
+            margin-top: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+        
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.9);
+            border: 3px solid #ff4444;
+            border-radius: 20px;
+            padding: 2rem 3rem;
+            text-align: center;
+            z-index: 100;
+            display: none;
+        }
+        
+        .game-over.show {
+            display: block;
+            animation: popIn 0.3s ease-out;
+        }
+        
+        @keyframes popIn {
+            from { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            to { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+        
+        .game-over h2 {
+            color: #ff4444;
+            font-size: 2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .game-over p {
+            font-size: 1.2rem;
+            margin-bottom: 1rem;
+        }
+        
+        .game-over button {
+            background: linear-gradient(135deg, #ffd700, #ff8c00);
+            border: none;
+            padding: 1rem 2rem;
+            font-size: 1rem;
+            font-family: inherit;
+            color: #000;
+            border-radius: 10px;
+            cursor: pointer;
+            font-weight: bold;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .game-over button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+        }
+        
+        .back-btn {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(255, 255, 255, 0.1);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            text-decoration: none;
+            transition: all 0.3s;
+        }
+        
+        .back-btn:hover {
+            background: rgba(255, 255, 255, 0.2);
+            border-color: #ffd700;
+        }
+    </style>
+</head>
+<body>
+    <a href="index.html" class="back-btn">← Back</a>
+    
+    <div class="game-header">
+        <h1 class="title">Benji Stack 🦴</h1>
+        <div class="stats">
+            <div class="stat">
+                <div class="stat-label">SCORE</div>
+                <div class="stat-value" id="score">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">BEST</div>
+                <div class="stat-value" id="best">0</div>
+            </div>
+            <div class="stat">
+                <div class="stat-label">STACK</div>
+                <div class="stat-value" id="stack">0</div>
+            </div>
+        </div>
+    </div>
+    
+    <canvas id="game" width="400" height="500"></canvas>
+    
+    <p class="instructions">Press SPACE or TAP to drop the bone. Stack as many as you can!</p>
+    
+    <div class="game-over" id="gameOver">
+        <h2>WOOF! 😢</h2>
+        <p>You stacked <span id="finalScore">0</span> bones!</p>
+        <p>Best: <span id="finalBest">0</span></p>
+        <button onclick="restart()">Try Again! 🐕</button>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        
+        let score = 0;
+        let best = parseInt(localStorage.getItem('benjiStackBest')) || 0;
+        let gameOver = false;
+        let currentBlock = null;
+        let blocks = [];
+        let cameraY = 0;
+        
+        const BLOCK_WIDTH = 80;
+        const BLOCK_HEIGHT = 30;
+        const DROP_SPEED = 8;
+        
+        function init() {
+            score = 0;
+            gameOver = false;
+            blocks = [];
+            cameraY = 0;
+            
+            blocks.push({
+                x: canvas.width / 2 - BLOCK_WIDTH / 2,
+                y: canvas.height - BLOCK_HEIGHT - 20,
+                width: BLOCK_WIDTH,
+                color: '#ffd700'
+            });
+            
+            spawnBlock();
+            updateUI();
+            document.getElementById('gameOver').classList.remove('show');
+        }
+        
+        function spawnBlock() {
+            const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#fd79a8', '#a29bfe'];
+            const randomColor = colors[Math.floor(Math.random() * colors.length)];
+            
+            currentBlock = {
+                x: canvas.width / 2 - BLOCK_WIDTH / 2,
+                y: -BLOCK_HEIGHT + cameraY,
+                width: BLOCK_WIDTH,
+                targetY: canvas.height - BLOCK_HEIGHT - 20 - (blocks.length * BLOCK_HEIGHT),
+                color: randomColor,
+                falling: true
+            };
+        }
+        
+        function update() {
+            if (gameOver) return;
+            
+            if (currentBlock && currentBlock.falling) {
+                currentBlock.y += DROP_SPEED;
+                
+                const lastBlock = blocks[blocks.length - 1];
+                const targetY = lastBlock.y - BLOCK_HEIGHT;
+                
+                if (currentBlock.y >= targetY) {
+                    currentBlock.y = targetY;
+                    currentBlock.falling = false;
+                    
+                    const overlap = getOverlap(currentBlock, lastBlock);
+                    
+                    if (overlap > 0) {
+                        currentBlock.width = overlap;
+                        
+                        if (currentBlock.x < lastBlock.x) {
+                            currentBlock.x = lastBlock.x;
+                        }
+                        
+                        blocks.push(currentBlock);
+                        score++;
+                        
+                        if (score > best) {
+                            best = score;
+                            localStorage.setItem('benjiStackBest', best);
+                        }
+                        
+                        cameraY += 2;
+                        updateUI();
+                        spawnBlock();
+                    } else {
+                        endGame();
+                    }
+                }
+            }
+        }
+        
+        function getOverlap(block1, block2) {
+            const left = Math.max(block1.x, block2.x);
+            const right = Math.min(block1.x + block1.width, block2.x + block2.width);
+            return Math.max(0, right - left);
+        }
+        
+        function endGame() {
+            gameOver = true;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('finalBest').textContent = best;
+            document.getElementById('gameOver').classList.add('show');
+        }
+        
+        function restart() {
+            init();
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('best').textContent = best;
+            document.getElementById('stack').textContent = blocks.length;
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.save();
+            ctx.translate(0, cameraY);
+            
+            for (let i = 0; i < blocks.length; i++) {
+                const block = blocks[i];
+                drawBlock(block.x, block.y, block.width, BLOCK_HEIGHT, block.color, i === 0);
+            }
+            
+            if (currentBlock) {
+                drawBlock(currentBlock.x, currentBlock.y, currentBlock.width, BLOCK_HEIGHT, currentBlock.color, false);
+            }
+            
+            ctx.restore();
+            
+            drawBenji();
+        }
+        
+        function drawBlock(x, y, width, height, color, isBase) {
+            ctx.fillStyle = color;
+            ctx.fillRect(x, y, width, height);
+            
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(x, y, width, height * 0.3);
+            
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.3)';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, width, height);
+            
+            if (isBase) {
+                ctx.fillStyle = '#000';
+                ctx.font = '16px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('🦴', x + width / 2, y + height / 2 + 6);
+            }
+        }
+        
+        function drawBenji() {
+            const benjiY = canvas.height - 100;
+            
+            ctx.font = '30px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('🐕', canvas.width / 2, benjiY);
+            
+            ctx.font = '14px Courier New';
+            ctx.fillStyle = '#ffd700';
+            ctx.fillText('Good boy!', canvas.width / 2, benjiY + 25);
+        }
+        
+        function gameLoop() {
+            update();
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        function handleInput(e) {
+            if (e.type === 'keydown' && e.code !== 'Space') return;
+            if (e.type === 'keydown') e.preventDefault();
+            
+            if (gameOver) {
+                restart();
+                return;
+            }
+            
+            if (currentBlock && currentBlock.falling) {
+                currentBlock.falling = false;
+                
+                const lastBlock = blocks[blocks.length - 1];
+                const overlap = getOverlap(currentBlock, lastBlock);
+                
+                if (overlap > 0) {
+                    currentBlock.width = overlap;
+                    
+                    if (currentBlock.x < lastBlock.x) {
+                        currentBlock.x = lastBlock.x;
+                    }
+                    
+                    currentBlock.y = lastBlock.y - BLOCK_HEIGHT;
+                    blocks.push(currentBlock);
+                    score++;
+                    
+                    if (score > best) {
+                        best = score;
+                        localStorage.setItem('benjiStackBest', best);
+                    }
+                    
+                    cameraY += 2;
+                    updateUI();
+                    spawnBlock();
+                } else {
+                    endGame();
+                }
+            }
+        }
+        
+        document.addEventListener('keydown', handleInput);
+        canvas.addEventListener('click', handleInput);
+        canvas.addEventListener('touchstart', handleInput);
+        
+        init();
+        gameLoop();
+    </script>
+</body>
+</html>
