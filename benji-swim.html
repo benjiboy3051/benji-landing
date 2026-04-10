@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Swim 🏊</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: linear-gradient(180deg, #0077be 0%, #003366 100%);
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #fff;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        
+        .game-header {
+            text-align: center;
+            padding: 1rem;
+            width: 100%;
+        }
+        
+        .title {
+            font-size: 2rem;
+            color: #00ffff;
+            text-shadow: 0 0 20px #00ffff;
+            animation: float 2s ease-in-out infinite;
+        }
+        
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-10px); }
+        }
+        
+        .stats {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            margin-top: 1rem;
+            font-size: 1.2rem;
+        }
+        
+        .stat {
+            background: rgba(0, 255, 255, 0.2);
+            padding: 0.5rem 1rem;
+            border-radius: 10px;
+            border: 2px solid #00ffff;
+        }
+        
+        .stat-value {
+            color: #00ffff;
+            font-weight: bold;
+        }
+        
+        canvas {
+            border: 3px solid #00ffff;
+            border-radius: 15px;
+            background: linear-gradient(180deg, #006994 0%, #001d3d 100%);
+            box-shadow: 0 0 30px rgba(0, 255, 255, 0.3);
+            cursor: none;
+        }
+        
+        .instructions {
+            margin-top: 1rem;
+            color: #aaa;
+            font-size: 0.9rem;
+            text-align: center;
+        }
+        
+        .game-over {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 30, 60, 0.95);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+        
+        .game-over.show {
+            display: flex;
+        }
+        
+        .game-over h2 {
+            font-size: 3rem;
+            color: #00ffff;
+            text-shadow: 0 0 30px #00ffff;
+            margin-bottom: 1rem;
+        }
+        
+        .game-over p {
+            font-size: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .restart-btn {
+            padding: 1rem 2rem;
+            font-size: 1.2rem;
+            background: #00ffff;
+            color: #001d3d;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .restart-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px #00ffff;
+        }
+
+        .start-screen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 30, 60, 0.95);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+        }
+
+        .start-screen h1 {
+            font-size: 2.5rem;
+            color: #00ffff;
+            text-shadow: 0 0 30px #00ffff;
+            margin-bottom: 1rem;
+        }
+
+        .start-screen p {
+            font-size: 1.2rem;
+            color: #aaa;
+            margin-bottom: 2rem;
+        }
+
+        .start-btn {
+            padding: 1rem 3rem;
+            font-size: 1.5rem;
+            background: #00ffff;
+            color: #001d3d;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 10px #00ffff; }
+            50% { box-shadow: 0 0 30px #00ffff; }
+        }
+
+        .bubbles {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: -1;
+        }
+
+        .bubble {
+            position: absolute;
+            bottom: -50px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            animation: rise linear infinite;
+        }
+
+        @keyframes rise {
+            0% { transform: translateY(0) translateX(0); opacity: 0; }
+            10% { opacity: 0.5; }
+            90% { opacity: 0.5; }
+            100% { transform: translateY(-110vh) translateX(20px); opacity: 0; }
+        }
+    </style>
+</head>
+<body>
+    <div class="bubbles" id="bubbles"></div>
+    
+    <div class="game-header">
+        <h1 class="title">🐶 BENJI SWIM 🏊</h1>
+        <div class="stats">
+            <div class="stat">SCORE: <span class="stat-value" id="score">0</span></div>
+            <div class="stat">DEPTH: <span class="stat-value" id="depth">0</span>m</div>
+            <div class="stat">BUBBLES: <span class="stat-value" id="bubbles">0</span></div>
+        </div>
+    </div>
+    
+    <canvas id="gameCanvas" width="500" height="500"></canvas>
+    
+    <p class="instructions">Click or tap to swim up • Collect bubbles, avoid jellyfish!</p>
+    
+    <div class="start-screen" id="startScreen">
+        <h1>🐶 BENJI SWIM 🏊</h1>
+        <p>Dive deep and collect bubbles!</p>
+        <button class="start-btn" onclick="startGame()">DIVE IN ▶</button>
+    </div>
+    
+    <div class="game-over" id="gameOver">
+        <h2>GAME OVER!</h2>
+        <p>Final Score: <span id="finalScore">0</span></p>
+        <p>Max Depth: <span id="finalDepth">0</span>m</p>
+        <button class="restart-btn" onclick="restartGame()">SWIM AGAIN 🐶</button>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        let benji = { x: 250, y: 250, vy: 0, radius: 20 };
+        let bubbles = [];
+        let jellyfish = [];
+        let score = 0;
+        let depth = 0;
+        let gameRunning = false;
+        let gameStarted = false;
+        let bubbleCount = 0;
+        let lastSpawn = 0;
+        
+        const GRAVITY = 0.15;
+        const SWIM_FORCE = -6;
+        const MAX_DEPTH = 500;
+        
+        function createBubbles() {
+            const container = document.getElementById('bubbles');
+            for (let i = 0; i < 15; i++) {
+                const bubble = document.createElement('div');
+                bubble.className = 'bubble';
+                const size = 10 + Math.random() * 30;
+                bubble.style.width = size + 'px';
+                bubble.style.height = size + 'px';
+                bubble.style.left = Math.random() * 100 + '%';
+                bubble.style.animationDuration = (8 + Math.random() * 10) + 's';
+                bubble.style.animationDelay = Math.random() * 10 + 's';
+                container.appendChild(bubble);
+            }
+        }
+        
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            gameStarted = true;
+            resetGame();
+        }
+        
+        function resetGame() {
+            benji = { x: 250, y: 250, vy: 0, radius: 20 };
+            bubbles = [];
+            jellyfish = [];
+            score = 0;
+            depth = 0;
+            bubbleCount = 0;
+            gameRunning = true;
+            updateUI();
+        }
+        
+        function spawnBubble() {
+            bubbles.push({
+                x: Math.random() * (canvas.width - 40) + 20,
+                y: canvas.height + 20,
+                radius: 8 + Math.random() * 12,
+                speed: 1 + Math.random() * 2,
+                wobble: Math.random() * Math.PI * 2,
+                wobbleSpeed: 0.05 + Math.random() * 0.05
+            });
+        }
+        
+        function spawnJellyfish() {
+            jellyfish.push({
+                x: Math.random() * (canvas.width - 60) + 30,
+                y: canvas.height + 30,
+                radius: 25 + Math.random() * 15,
+                speed: 0.8 + Math.random() * 1.5,
+                color: ['#ff69b4', '#9370db', '#ffa07a'][Math.floor(Math.random() * 3)],
+                tentacleOffset: Math.random() * Math.PI * 2
+            });
+        }
+        
+        function updateUI() {
+            document.getElementById('score').textContent = score;
+            document.getElementById('depth').textContent = depth;
+            document.getElementById('bubbles').textContent = bubbleCount;
+        }
+        
+        function update(deltaTime) {
+            if (!gameRunning) return;
+            
+            benji.vy += GRAVITY * deltaTime * 60;
+            benji.y += benji.vy * deltaTime * 60;
+            
+            if (benji.y < 0) {
+                benji.y = 0;
+                benji.vy = 0;
+            }
+            if (benji.y > canvas.height - benji.radius * 2) {
+                benji.y = canvas.height - benji.radius * 2;
+                benji.vy = -2;
+            }
+            if (benji.x < benji.radius) benji.x = benji.radius;
+            if (benji.x > canvas.width - benji.radius) benji.x = canvas.width - benji.radius;
+            
+            depth = Math.floor(Math.max(0, (500 - benji.y) / 5));
+            
+            lastSpawn += deltaTime;
+            if (lastSpawn > 0.5) {
+                if (Math.random() < 0.7) spawnBubble();
+                if (Math.random() < 0.3) spawnJellyfish();
+                lastSpawn = 0;
+            }
+            
+            bubbles.forEach(b => {
+                b.y -= b.speed * deltaTime * 60;
+                b.wobble += b.wobbleSpeed * deltaTime * 60;
+            });
+            bubbles = bubbles.filter(b => {
+                const dx = benji.x - b.x;
+                const dy = benji.y - b.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < benji.radius + b.radius) {
+                    score += 10;
+                    bubbleCount++;
+                    createCollectEffect(b.x, b.y);
+                    return false;
+                }
+                return b.y > -b.radius;
+            });
+            
+            jellyfish.forEach(j => {
+                j.y -= j.speed * deltaTime * 60;
+                j.tentacleOffset += 0.1 * deltaTime * 60;
+            });
+            jellyfish = jellyfish.filter(j => {
+                const dx = benji.x - j.x;
+                const dy = benji.y - j.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+                if (dist < benji.radius + j.radius * 0.7) {
+                    endGame();
+                    return false;
+                }
+                return j.y > -j.radius * 2;
+            });
+            
+            updateUI();
+        }
+        
+        let particles = [];
+        
+        function createCollectEffect(x, y) {
+            for (let i = 0; i < 6; i++) {
+                const angle = (Math.PI * 2 / 6) * i;
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: Math.cos(angle) * 2,
+                    vy: Math.sin(angle) * 2,
+                    life: 1,
+                    color: '#00ffff'
+                });
+            }
+        }
+        
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            const gradient = ctx.createLinearGradient(0, 0, 0, canvas.height);
+            gradient.addColorStop(0, '#006994');
+            gradient.addColorStop(1, '#001d3d');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            bubbles.forEach(b => {
+                ctx.save();
+                ctx.translate(b.x + Math.sin(b.wobble) * 5, b.y);
+                
+                const grad = ctx.createRadialGradient(-b.radius * 0.3, -b.radius * 0.3, 0, 0, 0, b.radius);
+                grad.addColorStop(0, 'rgba(255, 255, 255, 0.8)');
+                grad.addColorStop(0.5, 'rgba(0, 255, 255, 0.4)');
+                grad.addColorStop(1, 'rgba(0, 255, 255, 0.1)');
+                
+                ctx.beginPath();
+                ctx.arc(0, 0, b.radius, 0, Math.PI * 2);
+                ctx.fillStyle = grad;
+                ctx.fill();
+                ctx.strokeStyle = 'rgba(0, 255, 255, 0.5)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+                
+                ctx.restore();
+            });
+            
+            jellyfish.forEach(j => {
+                ctx.save();
+                ctx.translate(j.x, j.y);
+                
+                ctx.fillStyle = j.color;
+                ctx.globalAlpha = 0.7;
+                ctx.beginPath();
+                ctx.arc(0, 0, j.radius, Math.PI, 0);
+                ctx.fill();
+                
+                ctx.globalAlpha = 0.5;
+                for (let i = 0; i < 5; i++) {
+                    const x = -j.radius + (j.radius * 2 / 5) * i + j.radius / 5;
+                    ctx.beginPath();
+                    ctx.moveTo(x, 0);
+                    ctx.quadraticCurveTo(
+                        x + Math.sin(j.tentacleOffset + i) * 10,
+                        j.radius,
+                        x,
+                        j.radius * 1.5
+                    );
+                    ctx.strokeStyle = j.color;
+                    ctx.lineWidth = 3;
+                    ctx.stroke();
+                }
+                
+                ctx.globalAlpha = 1;
+                ctx.fillStyle = '#fff';
+                ctx.beginPath();
+                ctx.arc(-j.radius * 0.3, -j.radius * 0.3, j.radius * 0.15, 0, Math.PI * 2);
+                ctx.arc(j.radius * 0.3, -j.radius * 0.3, j.radius * 0.15, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
+            });
+            
+            ctx.save();
+            ctx.translate(benji.x, benji.y);
+            
+            const bodyGrad = ctx.createRadialGradient(0, 0, 0, 0, 0, benji.radius);
+            bodyGrad.addColorStop(0, '#ffd700');
+            bodyGrad.addColorStop(1, '#b8860b');
+            
+            ctx.beginPath();
+            ctx.ellipse(0, 0, benji.radius * 1.2, benji.radius, 0, 0, Math.PI * 2);
+            ctx.fillStyle = bodyGrad;
+            ctx.fill();
+            
+            ctx.beginPath();
+            ctx.ellipse(-benji.radius * 0.3, -benji.radius * 0.5, benji.radius * 0.4, benji.radius * 0.3, -0.3, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffd700';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.ellipse(-benji.radius * 0.3, -benji.radius * 0.5, benji.radius * 0.25, benji.radius * 0.2, -0.3, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffaa00';
+            ctx.fill();
+            
+            ctx.fillStyle = '#000';
+            const eyeY = benji.vy > 2 ? -3 : 0;
+            ctx.beginPath();
+            ctx.arc(-6, eyeY, 4, 0, Math.PI * 2);
+            ctx.arc(6, eyeY, 4, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#fff';
+            ctx.beginPath();
+            ctx.arc(-5, eyeY - 1, 1.5, 0, Math.PI * 2);
+            ctx.arc(7, eyeY - 1, 1.5, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.fillStyle = '#ff6b6b';
+            ctx.beginPath();
+            ctx.ellipse(0, 8, 6, 4, 0, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.restore();
+            
+            particles.forEach(p => {
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 4 * p.life, 0, Math.PI * 2);
+                ctx.fillStyle = p.color;
+                ctx.globalAlpha = p.life;
+                ctx.fill();
+                ctx.globalAlpha = 1;
+                
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.03;
+            });
+            particles = particles.filter(p => p.life > 0);
+        }
+        
+        function endGame() {
+            gameRunning = false;
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('finalDepth').textContent = depth;
+            document.getElementById('gameOver').classList.add('show');
+        }
+        
+        function restartGame() {
+            document.getElementById('gameOver').classList.remove('show');
+            resetGame();
+        }
+        
+        function gameLoop(timestamp) {
+            if (!gameRunning && !gameStarted) {
+                requestAnimationFrame(gameLoop);
+                return;
+            }
+            
+            const deltaTime = Math.min((timestamp - lastTime) / 1000, 0.1) || 0.016;
+            lastTime = timestamp;
+            
+            if (gameRunning) {
+                update(deltaTime);
+            }
+            
+            draw();
+            requestAnimationFrame(gameLoop);
+        }
+        
+        let lastTime = 0;
+        
+        canvas.addEventListener('click', () => {
+            if (!gameRunning) return;
+            benji.vy = SWIM_FORCE;
+        });
+        
+        canvas.addEventListener('touchstart', (e) => {
+            if (!gameRunning) return;
+            e.preventDefault();
+            benji.vy = SWIM_FORCE;
+        });
+        
+        canvas.addEventListener('mousemove', (e) => {
+            if (!gameRunning) return;
+            const rect = canvas.getBoundingClientRect();
+            benji.x = e.clientX - rect.left;
+        });
+        
+        canvas.addEventListener('touchmove', (e) => {
+            if (!gameRunning) return;
+            e.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            benji.x = e.touches[0].clientX - rect.left;
+        });
+        
+        createBubbles();
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
