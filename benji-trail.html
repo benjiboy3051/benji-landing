@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji Trail 🐕</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #1F2937;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Segoe UI', sans-serif;
+            overflow: hidden;
+        }
+        #gameContainer {
+            position: relative;
+        }
+        canvas {
+            border-radius: 15px;
+            box-shadow: 0 0 30px rgba(124, 58, 237, 0.5);
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #F59E0B;
+            font-size: 2rem;
+            font-weight: bold;
+            text-shadow: 0 0 10px rgba(245, 158, 11, 0.5);
+        }
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #9CA3AF;
+            font-size: 1rem;
+        }
+        #startScreen, #gameOverScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(31, 41, 55, 0.95);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            border-radius: 15px;
+        }
+        #gameOverScreen {
+            display: none;
+        }
+        h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+        .title-emoji {
+            font-size: 4rem;
+            animation: bounce 0.6s ease-in-out infinite;
+        }
+        @keyframes bounce {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+        p {
+            color: #9CA3AF;
+            margin-bottom: 2rem;
+            font-size: 1.2rem;
+        }
+        button {
+            background: linear-gradient(135deg, #7C3AED, #F59E0B);
+            border: none;
+            padding: 1rem 3rem;
+            font-size: 1.3rem;
+            border-radius: 50px;
+            color: white;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: scale(1.1);
+        }
+        .final-score {
+            color: #F59E0B;
+            font-size: 2.5rem;
+            font-weight: bold;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <canvas id="game" width="500" height="500"></canvas>
+        <div id="score">0</div>
+        <div id="instructions">Use Arrow Keys or WASD</div>
+        
+        <div id="startScreen">
+            <div class="title-emoji">🐕</div>
+            <h1>Benji Trail</h1>
+            <p>Help Benji collect treats in a trail!</p>
+            <button onclick="startGame()">Play!</button>
+        </div>
+        
+        <div id="gameOverScreen">
+            <div class="title-emoji">😢</div>
+            <h1>Game Over!</h1>
+            <div class="final-score" id="finalScore">0</div>
+            <p>Treats collected</p>
+            <button onclick="startGame()">Play Again!</button>
+        </div>
+    </div>
+    
+    <script>
+        const canvas = document.getElementById('game');
+        const ctx = canvas.getContext('2d');
+        const gridSize = 20;
+        const tileCount = 25;
+        
+        let benji = [];
+        let treat = {};
+        let direction = { x: 1, y: 0 };
+        let nextDirection = { x: 1, y: 0 };
+        let score = 0;
+        let gameLoop;
+        let isPlaying = false;
+        
+        function initGame() {
+            benji = [
+                { x: 12, y: 12 },
+                { x: 11, y: 12 },
+                { x: 10, y: 12 }
+            ];
+            direction = { x: 1, y: 0 };
+            nextDirection = { x: 1, y: 0 };
+            score = 0;
+            document.getElementById('score').textContent = score;
+            spawnTreat();
+        }
+        
+        function spawnTreat() {
+            treat = {
+                x: Math.floor(Math.random() * tileCount),
+                y: Math.floor(Math.random() * tileCount)
+            };
+            for (let segment of benji) {
+                if (segment.x === treat.x && segment.y === treat.y) {
+                    spawnTreat();
+                    return;
+                }
+            }
+        }
+        
+        function draw() {
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            ctx.fillStyle = '#374151';
+            for (let i = 0; i < tileCount; i++) {
+                for (let j = 0; j < tileCount; j++) {
+                    if ((i + j) % 2 === 0) {
+                        ctx.fillRect(i * gridSize, j * gridSize, gridSize, gridSize);
+                    }
+                }
+            }
+            
+            for (let i = 0; i < benji.length; i++) {
+                const segment = benji[i];
+                if (i === 0) {
+                    ctx.fillStyle = '#F59E0B';
+                } else {
+                    ctx.fillStyle = `rgba(245, 158, 11, ${1 - (i / benji.length) * 0.5})`;
+                }
+                
+                const x = segment.x * gridSize;
+                const y = segment.y * gridSize;
+                
+                ctx.beginPath();
+                ctx.roundRect(x + 2, y + 2, gridSize - 4, gridSize - 4, 5);
+                ctx.fill();
+                
+                if (i === 0) {
+                    ctx.fillStyle = '#000';
+                    ctx.beginPath();
+                    ctx.arc(x + 7, y + 8, 3, 0, Math.PI * 2);
+                    ctx.arc(x + 13, y + 8, 3, 0, Math.PI * 2);
+                    ctx.fill();
+                    
+                    ctx.fillStyle = '#FFF';
+                    ctx.beginPath();
+                    ctx.arc(x + 8, y + 7, 1.5, 0, Math.PI * 2);
+                    ctx.arc(x + 14, y + 7, 1.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+            
+            ctx.fillStyle = '#EF4444';
+            ctx.beginPath();
+            ctx.arc(
+                treat.x * gridSize + gridSize / 2,
+                treat.y * gridSize + gridSize / 2,
+                gridSize / 2 - 3,
+                0, Math.PI * 2
+            );
+            ctx.fill();
+            
+            ctx.fillStyle = '#FFF';
+            ctx.beginPath();
+            ctx.arc(
+                treat.x * gridSize + gridSize / 2 - 3,
+                treat.y * gridSize + gridSize / 2 - 3,
+                4,
+                0, Math.PI * 2
+            );
+            ctx.fill();
+        }
+        
+        function update() {
+            direction = nextDirection;
+            
+            const head = { x: benji[0].x + direction.x, y: benji[0].y + direction.y };
+            
+            if (head.x < 0 || head.x >= tileCount || head.y < 0 || head.y >= tileCount) {
+                gameOver();
+                return;
+            }
+            
+            for (let segment of benji) {
+                if (head.x === segment.x && head.y === segment.y) {
+                    gameOver();
+                    return;
+                }
+            }
+            
+            benji.unshift(head);
+            
+            if (head.x === treat.x && head.y === treat.y) {
+                score++;
+                document.getElementById('score').textContent = score;
+                spawnTreat();
+            } else {
+                benji.pop();
+            }
+            
+            draw();
+        }
+        
+        function gameOver() {
+            isPlaying = false;
+            clearInterval(gameLoop);
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('gameOverScreen').style.display = 'flex';
+        }
+        
+        function startGame() {
+            document.getElementById('startScreen').style.display = 'none';
+            document.getElementById('gameOverScreen').style.display = 'none';
+            initGame();
+            draw();
+            isPlaying = true;
+            gameLoop = setInterval(update, 120);
+        }
+        
+        document.addEventListener('keydown', (e) => {
+            if (!isPlaying) return;
+            
+            switch(e.key) {
+                case 'ArrowUp':
+                case 'w':
+                case 'W':
+                    if (direction.y !== 1) nextDirection = { x: 0, y: -1 };
+                    break;
+                case 'ArrowDown':
+                case 's':
+                case 'S':
+                    if (direction.y !== -1) nextDirection = { x: 0, y: 1 };
+                    break;
+                case 'ArrowLeft':
+                case 'a':
+                case 'A':
+                    if (direction.x !== 1) nextDirection = { x: -1, y: 0 };
+                    break;
+                case 'ArrowRight':
+                case 'd':
+                case 'D':
+                    if (direction.x !== -1) nextDirection = { x: 1, y: 0 };
+                    break;
+            }
+        });
+        
+        initGame();
+        draw();
+    </script>
+</body>
+</html>
