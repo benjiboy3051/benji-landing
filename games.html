@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benji's Arcade 🕹️</title>
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background: #0a0a0f;
+            min-height: 100vh;
+            font-family: 'Press Start 2P', monospace;
+            color: #fff;
+            overflow-x: hidden;
+        }
+        
+        /* Scanline effect */
+        body::before {
+            content: '';
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: repeating-linear-gradient(
+                0deg,
+                rgba(0, 0, 0, 0.15),
+                rgba(0, 0, 0, 0.15) 1px,
+                transparent 1px,
+                transparent 2px
+            );
+            pointer-events: none;
+            z-index: 1000;
+        }
+        
+        .arcade-header {
+            text-align: center;
+            padding: 2rem 1rem;
+            background: linear-gradient(180deg, #1a0a2e 0%, transparent 100%);
+        }
+        
+        .arcade-title {
+            font-size: 2rem;
+            color: #ff00ff;
+            text-shadow: 
+                0 0 10px #ff00ff,
+                0 0 20px #ff00ff,
+                0 0 40px #ff00ff;
+            animation: flicker 2s infinite;
+        }
+        
+        @keyframes flicker {
+            0%, 100% { opacity: 1; }
+            92% { opacity: 1; }
+            93% { opacity: 0.8; }
+            94% { opacity: 1; }
+            96% { opacity: 0.9; }
+            97% { opacity: 1; }
+        }
+        
+        .subtitle {
+            font-size: 0.6rem;
+            color: #00ffff;
+            text-shadow: 0 0 10px #00ffff;
+            margin-top: 1rem;
+        }
+        
+        .arcade-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem 1rem;
+        }
+        
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+            padding: 1rem;
+        }
+        
+        .game-cabinet {
+            background: linear-gradient(145deg, #1a1a2e 0%, #0f0f1a 100%);
+            border: 3px solid #00ffff;
+            border-radius: 15px;
+            padding: 1.5rem;
+            text-decoration: none;
+            color: inherit;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .game-cabinet::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(90deg, transparent, rgba(255, 0, 255, 0.1), transparent);
+            transition: left 0.5s ease;
+        }
+        
+        .game-cabinet:hover::before {
+            left: 100%;
+        }
+        
+        .game-cabinet:hover {
+            transform: translateY(-5px) scale(1.02);
+            border-color: #ff00ff;
+            box-shadow: 
+                0 0 20px rgba(0, 255, 255, 0.5),
+                0 0 40px rgba(255, 0, 255, 0.3);
+        }
+        
+        .cabinet-emoji {
+            font-size: 3rem;
+            text-align: center;
+            margin-bottom: 1rem;
+            filter: drop-shadow(0 0 10px rgba(255, 255, 255, 0.5));
+        }
+        
+        .cabinet-title {
+            font-size: 0.9rem;
+            color: #00ffff;
+            text-shadow: 0 0 5px #00ffff;
+            margin-bottom: 0.5rem;
+            text-align: center;
+        }
+        
+        .cabinet-desc {
+            font-size: 0.5rem;
+            color: #aaa;
+            text-align: center;
+            line-height: 1.6;
+        }
+        
+        .cabinet-play {
+            display: block;
+            text-align: center;
+            margin-top: 1rem;
+            padding: 0.5rem;
+            background: #ff00ff;
+            color: #fff;
+            font-size: 0.6rem;
+            border-radius: 5px;
+            animation: pulse 1.5s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 5px #ff00ff; }
+            50% { box-shadow: 0 0 20px #ff00ff; }
+        }
+        
+        .back-link {
+            display: inline-block;
+            margin: 2rem auto;
+            padding: 1rem 2rem;
+            background: transparent;
+            border: 2px solid #00ff00;
+            color: #00ff00;
+            text-decoration: none;
+            font-size: 0.7rem;
+            border-radius: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .back-link:hover {
+            background: #00ff00;
+            color: #0a0a0f;
+            box-shadow: 0 0 20px #00ff00;
+        }
+        
+        .back-container {
+            text-align: center;
+        }
+        
+        .credits {
+            text-align: center;
+            padding: 2rem;
+            font-size: 0.5rem;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <header class="arcade-header">
+        <h1 class="arcade-title">🕹️ BENJI'S ARCADE 🕹️</h1>
+        <p class="subtitle">INSERT COIN TO PLAY</p>
+    </header>
+    
+    <div class="arcade-container">
+        <div class="games-grid">
+            <a href="benji-runner.html" class="game-cabinet">
+                <div class="cabinet-emoji">🏃</div>
+                <h2 class="cabinet-title">BENJI RUNNER</h2>
+                <p class="cabinet-desc">Endless runner - jump over obstacles!</p>
+                <span class="cabinet-play">PLAY ▶</span>
+            </a>
+            
+            <a href="benji-catch.html" class="game-cabinet">
+                <div class="cabinet-emoji">🦴</div>
+                <h2 class="cabinet-title">BENJI CATCH</h2>
+                <p class="cabinet-desc">Catch treats, avoid the bad stuff!</p>
+                <span class="cabinet-play">PLAY ▶</span>
+            </a>
+            
+            <a href="benji-memory.html" class="game-cabinet">
+                <div class="cabinet-emoji">🃏</div>
+                <h2 class="cabinet-title">BENJI MEMORY</h2>
+                <p class="cabinet-desc">Match the doggo pairs!</p>
+                <span class="cabinet-play">PLAY ▶</span>
+            </a>
+            
+            <a href="benji-jump.html" class="game-cabinet">
+                <div class="cabinet-emoji">🐕</div>
+                <h2 class="cabinet-title">BENJI JUMP</h2>
+                <p class="cabinet-desc">Jump up, collect bones!</p>
+                <span class="cabinet-play">PLAY ▶</span>
+            </a>
+            
+            <a href="benji-bounce.html" class="game-cabinet">
+                <div class="cabinet-emoji">🎾</div>
+                <h2 class="cabinet-title">BENJI BOUNCE</h2>
+                <p class="cabinet-desc">Bounce ball, break bricks!</p>
+                <span class="cabinet-play">PLAY ▶</span>
+            </a>
+            
+            <a href="benji-trail.html" class="game-cabinet">
+                <div class="cabinet-emoji">🐕</div>
+                <h2 class="cabinet-title">BENJI TRAIL</h2>
+                <p class="cabinet-desc">Collect treats, grow the trail!</p>
+                <span class="cabinet-play">PLAY ▶</span>
+            </a>
+            
+            <a href="benji-hop.html" class="game-cabinet">
+                <div class="cabinet-emoji">🐸</div>
+                <h2 class="cabinet-title">BENJI HOP</h2>
+                <p class="cabinet-desc">Cross the roads safely!</p>
+                <span class="cabinet-play">PLAY ▶</span>
+            </a>
+            
+            <a href="benji-dodge.html" class="game-cabinet">
+                <div class="cabinet-emoji">🎾</div>
+                <h2 class="cabinet-title">BENJI DODGE</h2>
+                <p class="cabinet-desc">Dodge the balls!</p>
+                <span class="cabinet-play">PLAY ▶</span>
+            </a>
+        </div>
+        
+        <div class="back-container">
+            <a href="index.html" class="back-link">← BACK TO HOME</a>
+        </div>
+    </div>
+    
+    <footer class="credits">
+        <p>© 2026 BENJI'S ARCADE - ALL RIGHTS RESERVED</p>
+    </footer>
+</body>
+</html>
