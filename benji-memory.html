@@ -33,16 +33,19 @@
         #gameCanvas {
             border-radius: 16px;
             box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+            touch-action: none;
         }
         .stats {
             display: flex;
-            gap: 2rem;
+            gap: 1rem;
             margin-top: 1.5rem;
-            font-size: 1.2rem;
+            font-size: 1.1rem;
+            flex-wrap: wrap;
+            justify-content: center;
         }
         .stat {
             background: rgba(124, 58, 237, 0.3);
-            padding: 0.5rem 1.5rem;
+            padding: 0.5rem 1.2rem;
             border-radius: 50px;
         }
         .stat span {
@@ -73,9 +76,28 @@
             background: #7C3AED;
             transform: scale(1.05);
         }
+        .modes {
+            display: flex;
+            gap: 0.8rem;
+            margin-bottom: 1rem;
+        }
+        .mode-btn {
+            background: rgba(55, 65, 81, 0.8);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .mode-btn.active {
+            background: #7C3AED;
+            transform: scale(1.05);
+        }
         @media (max-width: 500px) {
             h1 { font-size: 1.5rem; }
             #gameCanvas { max-width: 100%; }
+            .stats { gap: 0.6rem; font-size: 0.95rem; }
         }
     </style>
 </head>
@@ -83,19 +105,31 @@
     <a href="index.html" class="back-btn">← Home</a>
     <h1>🐕 Benji Memory 🐕</h1>
     <p class="subtitle">Find all the matching doggo pairs!</p>
+
+    <div class="modes">
+        <button class="mode-btn active" onclick="setMode(4)">Normal (4x4)</button>
+        <button class="mode-btn" onclick="setMode(5)">Medium (5x4)</button>
+        <button class="mode-btn" onclick="setMode(6)">Hard (6x6)</button>
+    </div>
+
     <canvas id="gameCanvas" width="400" height="400"></canvas>
     <div class="stats">
+        <div class="stat">⏱️ Time: <span id="time">0:00</span></div>
         <div class="stat">Moves: <span id="moves">0</span></div>
         <div class="stat">Matches: <span id="matches">0</span>/8</div>
+        <div class="stat">🔥 Streak: <span id="streak">0</span></div>
+        <div class="stat">⭐ Score: <span id="score">0</span></div>
     </div>
     <div class="message" id="message"></div>
+
     <script>
         const canvas = document.getElementById('gameCanvas');
         const ctx = canvas.getContext('2d');
         
-        const emojis = ['🐕', '🐶', '🐩', '🦮', '🐕‍🦺', '🐾', '🦴', '🐺'];
-        const cardSize = 80;
-        const gap = 10;
+        const emojis = ['🐕', '🐶', '🐩', '🦮', '🐕‍🦺', '🐾', '🦴', '🐺', '😺', '🦊', '🐰', '🐹', '🐻', '🐼', '🐨', '🐯', '🦁', '🐮'];
+        let gridSize = 4;
+        let cardSize = 80;
+        const gap = 8;
         const offset = 20;
         
         let cards = [];
@@ -103,6 +137,26 @@
         let matched = 0;
         let moves = 0;
         let canFlip = true;
+        let streak = 0;
+        let score = 0;
+        let startTime = Date.now();
+        let timerInterval;
+        let particles = [];
+        let shakingCards = [];
+        let bestScores = JSON.parse(localStorage.getItem('benjiMemoryBest') || '{}');
+
+        function audioBeep(freq, duration=80) {
+            try {
+                const ac = new AudioContext();
+                const o = ac.createOscillator();
+                const g = ac.createGain();
+                o.connect(g); g.connect(ac.destination);
+                o.frequency.value = freq;
+                g.gain.setValueAtTime(0.15, ac.currentTime);
+                g.gain.exponentialRampToValueAtTime(0.01, ac.currentTime + duration/1000);
+                o.start(); o.stop(ac.currentTime + duration/1000);
+            } catch(e) {}
+        }
         
         function shuffle(array) {
             for (let i = array.length - 1; i > 0; i--) {
@@ -111,24 +165,87 @@
             }
             return array;
         }
+
+        function setMode(size) {
+            gridSize = size;
+            document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+            event.target.classList.add('active');
+            initGame();
+        }
         
         function initGame() {
-            const pairs = [...emojis, ...emojis];
+            clearInterval(timerInterval);
+            const totalCards = gridSize * gridSize;
+            const pairCount = totalCards / 2;
+
+            cardSize = Math.floor((360 - (gridSize-1)*gap) / gridSize);
+
+            const selectedEmojis = shuffle([...emojis]).slice(0, pairCount);
+            const pairs = [...selectedEmojis, ...selectedEmojis];
             shuffle(pairs);
+            
             cards = pairs.map((emoji, i) => ({
                 emoji,
-                x: offset + (i % 4) * (cardSize + gap),
-                y: offset + Math.floor(i / 4) * (cardSize + gap),
+                x: offset + (i % gridSize) * (cardSize + gap),
+                y: offset + Math.floor(i / gridSize) * (cardSize + gap),
                 revealed: false,
-                matched: false
+                matched: false,
+                flipProgress: 0,
+                shakeX: 0
             }));
+
             flipped = [];
             matched = 0;
             moves = 0;
+            streak = 0;
+            score = 0;
             canFlip = true;
+            particles = [];
+            shakingCards = [];
+            startTime = Date.now();
+            
             updateStats();
             document.getElementById('message').textContent = '';
+            document.getElementById('matches').textContent = `0/${pairCount}`;
+
+            timerInterval = setInterval(updateTimer, 1000);
+            requestAnimationFrame(gameLoop);
+        }
+
+        function updateTimer() {
+            const elapsed = Math.floor((Date.now() - startTime) / 1000);
+            const m = Math.floor(elapsed / 60);
+            const s = elapsed % 60;
+            document.getElementById('time').textContent = `${m}:${s.toString().padStart(2, '0')}`;
+        }
+        
+        function gameLoop() {
+            let active = false;
+
+            cards.forEach(card => {
+                if (card.flipProgress > 0 && card.flipProgress < 1) {
+                    card.flipProgress += 0.12;
+                    if (card.flipProgress >= 1) card.flipProgress = 1;
+                    active = true;
+                }
+                if (card.shakeX !== 0) {
+                    card.shakeX *= 0.8;
+                    if (Math.abs(card.shakeX) < 0.5) card.shakeX = 0;
+                    active = true;
+                }
+            });
+
+            particles = particles.filter(p => {
+                p.x += p.vx;
+                p.y += p.vy;
+                p.vy += 0.15;
+                p.life -= 0.025;
+                return p.life > 0;
+            });
+            if (particles.length > 0) active = true;
+
             draw();
+            if (active || matched < cards.length/2) requestAnimationFrame(gameLoop);
         }
         
         function draw() {
@@ -136,13 +253,21 @@
             ctx.fillRect(0, 0, canvas.width, canvas.height);
             
             cards.forEach(card => {
+                const flipOffset = Math.sin(card.flipProgress * Math.PI) * 8;
+                const scale = 1 - flipOffset / 100;
+                
+                ctx.save();
+                ctx.translate(card.x + cardSize/2 + card.shakeX, card.y + cardSize/2);
+                ctx.scale(scale, 1);
+                ctx.translate(-(card.x + cardSize/2), -(card.y + cardSize/2));
+
                 if (card.revealed || card.matched) {
-                    ctx.fillStyle = '#7C3AED';
+                    ctx.fillStyle = card.matched ? '#10B981' : '#7C3AED';
                     ctx.beginPath();
                     roundRect(ctx, card.x, card.y, cardSize, cardSize, 12);
                     ctx.fill();
                     
-                    ctx.font = '36px Arial';
+                    ctx.font = `${Math.floor(cardSize * 0.45)}px Arial`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.fillText(card.emoji, card.x + cardSize/2, card.y + cardSize/2 + 2);
@@ -152,7 +277,7 @@
                     roundRect(ctx, card.x, card.y, cardSize, cardSize, 12);
                     ctx.fill();
                     
-                    ctx.font = '28px Arial';
+                    ctx.font = `${Math.floor(cardSize * 0.35)}px Arial`;
                     ctx.textAlign = 'center';
                     ctx.textBaseline = 'middle';
                     ctx.fillText('🐾', card.x + cardSize/2, card.y + cardSize/2 + 2);
@@ -165,7 +290,48 @@
                     roundRect(ctx, card.x + 2, card.y + 2, cardSize - 4, cardSize - 4, 10);
                     ctx.stroke();
                 }
+
+                ctx.restore();
             });
+
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size, 0, Math.PI*2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1;
+        }
+
+        function spawnParticles(x, y, color='#F59E0B', count=12) {
+            for(let i=0; i<count; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const speed = 2 + Math.random() * 5;
+                particles.push({
+                    x, y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed - 2,
+                    size: 3 + Math.random() * 4,
+                    life: 1,
+                    color
+                });
+            }
+        }
+
+        function confettiExplosion() {
+            const colors = ['#EF4444', '#F59E0B', '#10B981', '#3B82F6', '#8B5CF6', '#EC4899'];
+            for(let i=0; i<120; i++) {
+                particles.push({
+                    x: Math.random() * 400,
+                    y: Math.random() * 400,
+                    vx: (Math.random()-0.5) * 10,
+                    vy: -4 - Math.random() * 6,
+                    size: 4 + Math.random() * 5,
+                    life: 1,
+                    color: colors[Math.floor(Math.random()*colors.length)]
+                });
+            }
         }
         
         function roundRect(ctx, x, y, w, h, r) {
@@ -196,7 +362,9 @@
             );
             
             if (clicked) {
+                audioBeep(520, 60);
                 clicked.revealed = true;
+                clicked.flipProgress = 0.01;
                 flipped.push(clicked);
                 draw();
                 
@@ -206,25 +374,55 @@
                     canFlip = false;
                     
                     if (flipped[0].emoji === flipped[1].emoji) {
+                        audioBeep(780, 100);
+                        setTimeout(() => audioBeep(920, 80), 100);
+                        
                         flipped[0].matched = true;
                         flipped[1].matched = true;
                         matched++;
+                        streak++;
+                        score += 100 * streak;
+                        
+                        spawnParticles(flipped[0].x + cardSize/2, flipped[0].y + cardSize/2, '#10B981');
+                        spawnParticles(flipped[1].x + cardSize/2, flipped[1].y + cardSize/2, '#3B82F6');
+                        
                         updateStats();
                         flipped = [];
                         canFlip = true;
-                        draw();
                         
-                        if (matched === 8) {
-                            document.getElementById('message').textContent = '🎉 Good dog! You found them all! 🎉';
+                        if (matched === cards.length / 2) {
+                            clearInterval(timerInterval);
+                            confettiExplosion();
+                            audioBeep(523); setTimeout(()=>audioBeep(659),120); setTimeout(()=>audioBeep(784),240);
+                            
+                            const timeTaken = Math.floor((Date.now() - startTime)/1000);
+                            let stars = 3;
+                            if (moves > cards.length * 1.2) stars = 2;
+                            if (moves > cards.length * 1.6) stars = 1;
+                            
+                            const key = `${gridSize}x${gridSize}`;
+                            if (!bestScores[key] || score > bestScores[key]) {
+                                bestScores[key] = score;
+                                localStorage.setItem('benjiMemoryBest', JSON.stringify(bestScores));
+                                document.getElementById('message').textContent = `🎉 NEW BEST! ${'⭐'.repeat(stars)} ${score} pts in ${timeTaken}s! 🎉`;
+                            } else {
+                                document.getElementById('message').textContent = `🎉 Good dog! ${'⭐'.repeat(stars)} ${score} pts! 🎉`;
+                            }
                         }
                     } else {
+                        streak = 0;
+                        audioBeep(220, 120);
                         setTimeout(() => {
                             flipped[0].revealed = false;
                             flipped[1].revealed = false;
+                            flipped[0].flipProgress = 0;
+                            flipped[1].flipProgress = 0;
+                            flipped[0].shakeX = 8;
+                            flipped[1].shakeX = -8;
                             flipped = [];
                             canFlip = true;
-                            draw();
-                        }, 800);
+                            updateStats();
+                        }, 650);
                     }
                 }
             }
@@ -233,6 +431,8 @@
         function updateStats() {
             document.getElementById('moves').textContent = moves;
             document.getElementById('matches').textContent = matched;
+            document.getElementById('streak').textContent = streak;
+            document.getElementById('score').textContent = score;
         }
         
         canvas.addEventListener('click', handleClick);
